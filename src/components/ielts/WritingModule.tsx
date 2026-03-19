@@ -3,6 +3,7 @@ import { useTest } from './TestProvider';
 import { TopBar } from './TopBar';
 import { writingContent } from '@/data/ielts-content';
 import { roundIELTS } from '@/lib/scoring';
+import { useAntiCheat } from '@/hooks/use-anti-cheat';
 import { Button } from '@/components/ui/button';
 import { Send, Loader2, BarChart3 } from 'lucide-react';
 
@@ -162,12 +163,15 @@ RETURN STRICTLY THIS JSON (no extra text):
     );
   };
 
+  const { tabSwitchCount } = useAntiCheat({ onAutoSubmit: handleSubmit });
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <TopBar
         title={`Writing — Task ${currentTask + 1}`}
         totalSeconds={3600}
         onTimeUp={handleSubmit}
+        tabSwitchCount={tabSwitchCount}
       />
 
       <div className="flex-1 max-w-4xl mx-auto w-full px-6 py-6">
