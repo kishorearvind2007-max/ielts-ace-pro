@@ -127,48 +127,25 @@ export function SpeakingModule() {
   }, [currentQuestion, currentPart, part, stopRecording, startPrepTimer]);
 
   const evaluateWithAI = useCallback(async () => {
-    if (!state.apiKey) return null;
-
     const fullTranscript = `Part 1:\n${state.speakingTranscripts.part1}\n\nPart 2:\n${state.speakingTranscripts.part2}\n\nPart 3:\n${state.speakingTranscripts.part3}`;
 
-    const systemPrompt = `You are a certified IELTS Speaking examiner. Evaluate the transcript according to official IELTS Speaking Band Descriptors.
-
-RETURN STRICTLY THIS JSON:
-{
-  "fluency_coherence": { "band": 0.0, "feedback": "", "examples": [] },
-  "lexical_resource": { "band": 0.0, "feedback": "", "examples": [] },
-  "grammatical_range": { "band": 0.0, "feedback": "", "examples": [] },
-  "pronunciation": { "band": 0.0, "feedback": "", "inferred_from": "" },
-  "overall_band": 0.0,
-  "strengths": [],
-  "improvements": [],
-  "examiner_comment": ""
-}`;
-
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('/api/evaluate-speaking', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': state.apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
         },
         body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 1000,
-          system: systemPrompt,
-          messages: [{ role: 'user', content: fullTranscript }],
+          fullTranscript,
         }),
       });
 
       if (!response.ok) throw new Error('API error');
-      const data = await response.json();
-      return JSON.parse(data.content?.[0]?.text || '{}');
+      return await response.json();
     } catch {
       return null;
     }
-  }, [state.apiKey, state.speakingTranscripts]);
+  }, [state.speakingTranscripts]);
 
   const handleSubmit = useCallback(async () => {
     stopRecording();
@@ -180,25 +157,23 @@ RETURN STRICTLY THIS JSON:
     let improvements: string[] = [];
     let examinerComment = '';
 
-    if (state.apiKey) {
-      const result = await evaluateWithAI();
-      if (result) {
-        band = result.overall_band;
-        criteriaScores = {
-          'Fluency & Coherence': result.fluency_coherence,
-          'Lexical Resource': result.lexical_resource,
-          'Grammatical Range': result.grammatical_range,
-          'Pronunciation': result.pronunciation,
-        };
-        strengths = result.strengths || [];
-        improvements = result.improvements || [];
-        examinerComment = result.examiner_comment || '';
-      }
+    const result = await evaluateWithAI();
+    if (result) {
+      band = result.overall_band;
+      criteriaScores = {
+        'Fluency & Coherence': result.fluency_coherence,
+        'Lexical Resource': result.lexical_resource,
+        'Grammatical Range': result.grammatical_range,
+        'Pronunciation': result.pronunciation,
+      };
+      strengths = result.strengths || [];
+      improvements = result.improvements || [];
+      examinerComment = result.examiner_comment || '';
     } else {
       // Fallback
       const totalWords = Object.values(state.speakingTranscripts).join(' ').split(/\s+/).length;
       band = totalWords >= 200 ? 6.0 : totalWords >= 100 ? 5.0 : 4.0;
-      examinerComment = 'AI evaluation unavailable. Add an API key for detailed feedback.';
+      examinerComment = 'AI evaluation unavailable. Configure ANTHROPIC_API_KEY on the server for detailed feedback.';
     }
 
     submitModule({
@@ -210,7 +185,7 @@ RETURN STRICTLY THIS JSON:
       examinerComment,
     });
     setIsEvaluating(false);
-  }, [state.apiKey, state.speakingTranscripts, evaluateWithAI, stopRecording, submitModule]);
+  }, [state.speakingTranscripts, evaluateWithAI, stopRecording, submitModule]);
 
   useEffect(() => {
     return () => {

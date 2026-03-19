@@ -12,7 +12,7 @@ const modules: { id: TestModule; title: string; icon: React.ReactNode; time: str
 ];
 
 export function HomeScreen() {
-  const { state, dispatch, startModule, showResults } = useTest();
+  const { state, startModule, showResults } = useTest();
   const completedModules = state.results.map(r => r.module);
   const allDone = completedModules.length === 4;
 
@@ -38,41 +38,16 @@ export function HomeScreen() {
           </p>
         </motion.div>
 
-        {/* API Key Input */}
-        {!state.apiKey && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mb-8 p-6 rounded-xl bg-card border border-border"
-          >
-            <h3 className="text-sm font-semibold text-foreground mb-2">Anthropic API Key (Optional)</h3>
-            <p className="text-xs text-muted-foreground mb-3">Required for AI evaluation of Writing & Speaking modules. Your key stays in memory only.</p>
-            <div className="flex gap-3">
-              <input
-                type="password"
-                placeholder="sk-ant-..."
-                className="flex-1 px-4 py-2 rounded-lg bg-secondary border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                id="api-key-input"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    const val = (e.target as HTMLInputElement).value.trim();
-                    if (val) dispatch({ type: 'SET_API_KEY', key: val });
-                  }
-                }}
-              />
-              <Button
-                onClick={() => {
-                  const input = document.getElementById('api-key-input') as HTMLInputElement;
-                  if (input?.value.trim()) dispatch({ type: 'SET_API_KEY', key: input.value.trim() });
-                }}
-                variant="default"
-                size="sm"
-              >
-                Save Key
-              </Button>
-            </div>
-          </motion.div>
-        )}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="mb-8 p-6 rounded-xl bg-card border border-border"
+        >
+          <h3 className="text-sm font-semibold text-foreground mb-2">AI Evaluation Enabled</h3>
+          <p className="text-xs text-muted-foreground">
+            Writing and Speaking modules are evaluated through secure server routes. Configure ANTHROPIC_API_KEY in the server environment.
+          </p>
+        </motion.div>
 
         {/* Module Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">

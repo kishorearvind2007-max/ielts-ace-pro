@@ -17,48 +17,24 @@ export function WritingModule() {
   const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
 
   const evaluateWithAI = useCallback(async (taskText: string, taskType: string) => {
-    if (!state.apiKey) return null;
-
-    const systemPrompt = `You are a certified IELTS examiner with 10+ years of experience. Evaluate the following ${taskType} response strictly according to official IELTS Writing Band Descriptors.
-
-RETURN STRICTLY THIS JSON (no extra text):
-{
-  "task_achievement": { "band": 0.0, "feedback": "", "examples": [] },
-  "coherence_cohesion": { "band": 0.0, "feedback": "", "examples": [] },
-  "lexical_resource": { "band": 0.0, "feedback": "", "examples": [] },
-  "grammatical_range": { "band": 0.0, "feedback": "", "examples": [] },
-  "overall_band": 0.0,
-  "word_count": 0,
-  "strengths": [],
-  "improvements": [],
-  "examiner_comment": ""
-}`;
-
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('/api/evaluate-writing', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': state.apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
         },
         body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 1000,
-          system: systemPrompt,
-          messages: [{ role: 'user', content: taskText }],
+          taskText,
+          taskType,
         }),
       });
 
       if (!response.ok) throw new Error('API error');
-      const data = await response.json();
-      const content = data.content?.[0]?.text || '';
-      return JSON.parse(content);
+      return await response.json();
     } catch {
       return null;
     }
-  }, [state.apiKey]);
+  }, []);
 
   const handleSubmit = useCallback(async () => {
     setIsEvaluating(true);
@@ -70,32 +46,32 @@ RETURN STRICTLY THIS JSON (no extra text):
     let improvements: string[] = [];
     let examinerComment = '';
 
-    if (state.apiKey) {
-      const [task1Result, task2Result] = await Promise.all([
-        evaluateWithAI(state.writingResponses.task1, 'Task 1 (Academic - describe a graph)'),
-        evaluateWithAI(state.writingResponses.task2, 'Task 2 (Essay)'),
-      ]);
+    const [task1Result, task2Result] = await Promise.all([
+      evaluateWithAI(state.writingResponses.task1, 'Task 1 (Academic - describe a graph)'),
+      evaluateWithAI(state.writingResponses.task2, 'Task 2 (Essay)'),
+    ]);
 
-      if (task1Result) task1Band = task1Result.overall_band;
-      if (task2Result) {
-        task2Band = task2Result.overall_band;
-        criteriaScores = {
-          'Task Response': task2Result.task_achievement,
-          'Coherence & Cohesion': task2Result.coherence_cohesion,
-          'Lexical Resource': task2Result.lexical_resource,
-          'Grammatical Range': task2Result.grammatical_range,
-        };
-        strengths = task2Result.strengths || [];
-        improvements = task2Result.improvements || [];
-        examinerComment = task2Result.examiner_comment || '';
-      }
-    } else {
+    if (task1Result) task1Band = task1Result.overall_band;
+    if (task2Result) {
+      task2Band = task2Result.overall_band;
+      criteriaScores = {
+        'Task Response': task2Result.task_achievement,
+        'Coherence & Cohesion': task2Result.coherence_cohesion,
+        'Lexical Resource': task2Result.lexical_resource,
+        'Grammatical Range': task2Result.grammatical_range,
+      };
+      strengths = task2Result.strengths || [];
+      improvements = task2Result.improvements || [];
+      examinerComment = task2Result.examiner_comment || '';
+    }
+
+    if (!task1Result && !task2Result) {
       // Fallback: estimate based on word count
       const wc1 = state.writingResponses.task1.trim().split(/\s+/).length;
       const wc2 = state.writingResponses.task2.trim().split(/\s+/).length;
       task1Band = wc1 >= 150 ? 6.0 : wc1 >= 100 ? 5.0 : 4.0;
       task2Band = wc2 >= 250 ? 6.0 : wc2 >= 150 ? 5.0 : 4.0;
-      examinerComment = 'AI evaluation unavailable. Score estimated from word count. Add an API key for detailed feedback.';
+      examinerComment = 'AI evaluation unavailable. Score estimated from word count. Configure ANTHROPIC_API_KEY on the server for detailed feedback.';
     }
 
     const writingBand = roundIELTS((task1Band + task2Band * 2) / 3);
@@ -109,7 +85,7 @@ RETURN STRICTLY THIS JSON (no extra text):
       examinerComment,
     });
     setIsEvaluating(false);
-  }, [state.apiKey, state.writingResponses, evaluateWithAI, submitModule]);
+  }, [state.writingResponses, evaluateWithAI, submitModule]);
 
   // Simple chart rendering for Task 1
   const renderChart = () => {
