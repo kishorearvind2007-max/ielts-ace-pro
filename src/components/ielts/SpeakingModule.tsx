@@ -56,7 +56,7 @@ export function SpeakingModule() {
     recognition.onend = () => {
       // Restart if still recording
       if (isRecording) {
-        try { recognition.start(); } catch {}
+        try { recognition.start(); } catch { }
       }
     };
 
@@ -212,10 +212,9 @@ export function SpeakingModule() {
         {/* Part indicators */}
         <div className="flex gap-3 mb-8">
           {[1, 2, 3].map(p => (
-            <div key={p} className={`px-4 py-2 rounded-lg text-sm font-medium ${
-              currentPart + 1 === p ? 'bg-primary text-primary-foreground' : 
-              currentPart + 1 > p ? 'bg-success/20 text-success' : 'bg-secondary text-secondary-foreground'
-            }`}>
+            <div key={p} className={`px-4 py-2 rounded-lg text-sm font-medium ${currentPart + 1 === p ? 'bg-primary text-primary-foreground' :
+                currentPart + 1 > p ? 'bg-success/20 text-success' : 'bg-secondary text-secondary-foreground'
+              }`}>
               Part {p}
             </div>
           ))}
@@ -263,13 +262,12 @@ export function SpeakingModule() {
           <button
             onClick={isRecording ? stopRecording : startRecording}
             disabled={isPreparing}
-            className={`w-24 h-24 rounded-full flex items-center justify-center transition-all ${
-              isRecording
+            className={`w-24 h-24 rounded-full flex items-center justify-center transition-all ${isRecording
                 ? 'bg-destructive animate-pulse-recording'
                 : isPreparing
-                ? 'bg-secondary cursor-not-allowed'
-                : 'bg-primary hover:bg-primary/80'
-            }`}
+                  ? 'bg-secondary cursor-not-allowed'
+                  : 'bg-primary hover:bg-primary/80'
+              }`}
           >
             {isRecording ? <MicOff className="w-10 h-10 text-foreground" /> : <Mic className="w-10 h-10 text-primary-foreground" />}
           </button>

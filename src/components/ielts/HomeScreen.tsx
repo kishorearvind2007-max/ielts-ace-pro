@@ -61,9 +61,8 @@ export function HomeScreen() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.1 }}
-                className={`relative p-6 rounded-xl border bg-gradient-card shadow-card transition-all hover:shadow-gold hover:border-primary/30 ${
-                  isComplete ? 'border-success/40' : 'border-border'
-                }`}
+                className={`relative p-6 rounded-xl border bg-gradient-card shadow-card transition-all hover:shadow-gold hover:border-primary/30 ${isComplete ? 'border-success/40' : 'border-border'
+                  }`}
               >
                 {isComplete && (
                   <div className="absolute top-4 right-4 px-3 py-1 rounded-full bg-success/20 text-success text-xs font-semibold">

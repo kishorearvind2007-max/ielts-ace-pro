@@ -155,9 +155,8 @@ export function WritingModule() {
         <div className="flex gap-3 mb-6">
           {[0, 1].map(i => (
             <button key={i} onClick={() => setCurrentTask(i)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                currentTask === i ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'
-              }`}>
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${currentTask === i ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'
+                }`}>
               Task {i + 1} ({writingContent[i].recommendedMinutes} min)
             </button>
           ))}
@@ -180,9 +179,8 @@ export function WritingModule() {
             className="w-full h-80 p-4 rounded-xl bg-card border border-border text-foreground text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-ring"
             placeholder="Write your response here..."
           />
-          <div className={`absolute bottom-3 right-3 px-3 py-1 rounded-lg text-xs font-semibold ${
-            wordCount >= task.minWords ? 'bg-success/20 text-success' : wordCount >= task.minWords * 0.6 ? 'bg-warning/20 text-warning' : 'bg-destructive/20 text-destructive'
-          }`}>
+          <div className={`absolute bottom-3 right-3 px-3 py-1 rounded-lg text-xs font-semibold ${wordCount >= task.minWords ? 'bg-success/20 text-success' : wordCount >= task.minWords * 0.6 ? 'bg-warning/20 text-warning' : 'bg-destructive/20 text-destructive'
+            }`}>
             {wordCount} / {task.minWords} words
           </div>
         </div>

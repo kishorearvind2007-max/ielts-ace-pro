@@ -9,15 +9,15 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 const queryClient = new QueryClient();
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
-  return (
-    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          {children}
-          <Toaster />
-          <Sonner />
-        </TooltipProvider>
-      </QueryClientProvider>
-    </ThemeProvider>
-  );
+    return (
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+            <QueryClientProvider client={queryClient}>
+                <TooltipProvider>
+                    {children}
+                    <Toaster />
+                    <Sonner />
+                </TooltipProvider>
+            </QueryClientProvider>
+        </ThemeProvider>
+    );
 }

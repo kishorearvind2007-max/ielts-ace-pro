@@ -9,32 +9,32 @@ import { SpeakingModule } from "@/components/ielts/SpeakingModule";
 import { ResultsScreen } from "@/components/ielts/ResultsScreen";
 
 function TestApp() {
-  const { state } = useTest();
+    const { state } = useTest();
 
-  if (state.phase === "results") {
-    return <ResultsScreen />;
-  }
-
-  if (state.phase === "test" && state.currentModule) {
-    switch (state.currentModule) {
-      case "listening":
-        return <ListeningModule />;
-      case "reading":
-        return <ReadingModule />;
-      case "writing":
-        return <WritingModule />;
-      case "speaking":
-        return <SpeakingModule />;
+    if (state.phase === "results") {
+        return <ResultsScreen />;
     }
-  }
 
-  return <HomeScreen />;
+    if (state.phase === "test" && state.currentModule) {
+        switch (state.currentModule) {
+            case "listening":
+                return <ListeningModule />;
+            case "reading":
+                return <ReadingModule />;
+            case "writing":
+                return <WritingModule />;
+            case "speaking":
+                return <SpeakingModule />;
+        }
+    }
+
+    return <HomeScreen />;
 }
 
 export default function HomePage() {
-  return (
-    <TestProvider>
-      <TestApp />
-    </TestProvider>
-  );
+    return (
+        <TestProvider>
+            <TestApp />
+        </TestProvider>
+    );
 }

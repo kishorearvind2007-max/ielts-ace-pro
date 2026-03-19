@@ -22,7 +22,9 @@
         "name": "next"
       }
     ],
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "baseUrl": ".",
     "paths": {
       "@/*": [
