@@ -3,6 +3,7 @@ import { useTest } from './TestProvider';
 import { TopBar } from './TopBar';
 import { speakingContent } from '@/data/ielts-content';
 import { roundIELTS } from '@/lib/scoring';
+import { useAntiCheat } from '@/hooks/use-anti-cheat';
 import { Button } from '@/components/ui/button';
 import { Mic, MicOff, Send, Loader2, ChevronRight, Clock } from 'lucide-react';
 
