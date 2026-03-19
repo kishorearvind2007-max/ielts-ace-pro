@@ -12,8 +12,7 @@ const modules: { id: TestModule; title: string; icon: React.ReactNode; time: str
 ];
 
 export function HomeScreen() {
-  const { dispatch } = useTest();
-  const { state, startModule, showResults } = useTest();
+  const { state, dispatch, startModule, showResults } = useTest();
   const completedModules = state.results.map(r => r.module);
   const allDone = completedModules.length === 4;
 

@@ -9,7 +9,9 @@ import { ResultsScreen } from '@/components/ielts/ResultsScreen';
 function TestApp() {
   const { state } = useTest();
 
-  if (state.phase === 'results') return <ResultsScreen />;
+  if (state.phase === 'results') {
+    return <ResultsScreen />;
+  }
   
   if (state.phase === 'test' && state.currentModule) {
     switch (state.currentModule) {
@@ -26,7 +28,9 @@ function TestApp() {
 export default function Index() {
   return (
     <TestProvider>
-      <TestApp />
+      <div>
+        <TestApp />
+      </div>
     </TestProvider>
   );
 }
