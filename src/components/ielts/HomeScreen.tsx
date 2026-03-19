@@ -52,26 +52,18 @@ export function HomeScreen() {
                 type="password"
                 placeholder="sk-ant-..."
                 className="flex-1 px-4 py-2 rounded-lg bg-secondary border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                id="api-key-input"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
-                    const target = e.target as HTMLInputElement;
-                    if (target.value.trim()) {
-                      // Save via context
-                    }
+                    const val = (e.target as HTMLInputElement).value.trim();
+                    if (val) dispatch({ type: 'SET_API_KEY', key: val });
                   }
                 }}
-                onChange={(e) => {
-                  // Debounce would be better but this works
-                }}
-                id="api-key-input"
               />
               <Button
                 onClick={() => {
                   const input = document.getElementById('api-key-input') as HTMLInputElement;
-                  if (input?.value.trim()) {
-                    // dispatch is accessed via context, but we need it here
-                    // We'll handle this in the parent
-                  }
+                  if (input?.value.trim()) dispatch({ type: 'SET_API_KEY', key: input.value.trim() });
                 }}
                 variant="default"
                 size="sm"
