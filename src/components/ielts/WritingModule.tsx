@@ -163,12 +163,15 @@ RETURN STRICTLY THIS JSON (no extra text):
     );
   };
 
+  const { tabSwitchCount } = useAntiCheat({ onAutoSubmit: handleSubmit });
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <TopBar
         title={`Writing — Task ${currentTask + 1}`}
         totalSeconds={3600}
         onTimeUp={handleSubmit}
+        tabSwitchCount={tabSwitchCount}
       />
 
       <div className="flex-1 max-w-4xl mx-auto w-full px-6 py-6">
