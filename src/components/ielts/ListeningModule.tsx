@@ -3,8 +3,9 @@ import { useTest } from './TestProvider';
 import { TopBar } from './TopBar';
 import { listeningContent } from '@/data/ielts-content';
 import { rawToBand, scoreAnswers } from '@/lib/scoring';
+import { useAntiCheat } from '@/hooks/use-anti-cheat';
 import { Button } from '@/components/ui/button';
-import { Play, Pause, SkipForward, Volume2 } from 'lucide-react';
+import { Play, Pause, SkipForward, Volume2, Lock } from 'lucide-react';
 
 export function ListeningModule() {
   const { state, dispatch, submitModule } = useTest();
@@ -19,21 +20,16 @@ export function ListeningModule() {
   const section = listeningContent[currentSection];
   const allQuestions = listeningContent.flatMap(s => s.questions);
   const answeredCount = Object.keys(state.answers.listening || {}).length;
-
   const allAnswerKeys = listeningContent.reduce<Record<number, string>>((acc, s) => ({ ...acc, ...s.answerKey }), {});
 
   const handleSubmit = useCallback(() => {
     window.speechSynthesis.cancel();
     const raw = scoreAnswers(state.answers.listening || {}, allAnswerKeys);
     const band = rawToBand(raw);
-    submitModule({
-      module: 'listening',
-      band,
-      rawScore: raw,
-      totalQuestions: 40,
-      answers: state.answers.listening,
-    });
+    submitModule({ module: 'listening', band, rawScore: raw, totalQuestions: 40, answers: state.answers.listening });
   }, [state.answers.listening, allAnswerKeys, submitModule]);
+
+  const { tabSwitchCount } = useAntiCheat({ onAutoSubmit: handleSubmit });
 
   const playSection = useCallback(() => {
     window.speechSynthesis.cancel();
@@ -41,18 +37,16 @@ export function ListeningModule() {
     utterance.rate = 0.9;
     utterance.pitch = 1;
     utterance.lang = 'en-GB';
-    
     utteranceRef.current = utterance;
     setIsPlaying(true);
     setAudioProgress(0);
 
-    const estimatedDuration = section.script.length * 60; // rough ms estimate
+    const estimatedDuration = section.script.length * 60;
     const startTime = Date.now();
 
     progressIntervalRef.current = setInterval(() => {
       const elapsed = Date.now() - startTime;
-      const progress = Math.min(100, (elapsed / estimatedDuration) * 100);
-      setAudioProgress(progress);
+      setAudioProgress(Math.min(100, (elapsed / estimatedDuration) * 100));
     }, 200);
 
     utterance.onend = () => {
@@ -77,6 +71,7 @@ export function ListeningModule() {
     }
   }, [isPlaying, playSection]);
 
+  // Locked forward-only navigation
   const nextSection = useCallback(() => {
     window.speechSynthesis.cancel();
     setIsPlaying(false);
@@ -85,7 +80,6 @@ export function ListeningModule() {
     const newComplete = [...sectionComplete];
     newComplete[currentSection] = true;
     setSectionComplete(newComplete);
-    
     if (currentSection < 3) {
       setCurrentSection(currentSection + 1);
     } else {
@@ -102,7 +96,6 @@ export function ListeningModule() {
 
   const renderQuestion = (q: typeof allQuestions[0]) => {
     const answer = state.answers.listening?.[q.id] || '';
-
     if (q.type === 'mcq' || q.type === 'true-false-ng') {
       return (
         <div className="space-y-2">
@@ -110,16 +103,10 @@ export function ListeningModule() {
             <label key={opt} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
               answer === opt ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/30'
             }`}>
-              <input
-                type="radio"
-                name={`q-${q.id}`}
-                checked={answer === opt}
+              <input type="radio" name={`q-${q.id}`} checked={answer === opt}
                 onChange={() => dispatch({ type: 'SET_ANSWER', module: 'listening', questionId: q.id, answer: opt })}
-                className="sr-only"
-              />
-              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                answer === opt ? 'border-primary' : 'border-muted-foreground'
-              }`}>
+                className="sr-only" />
+              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${answer === opt ? 'border-primary' : 'border-muted-foreground'}`}>
                 {answer === opt && <div className="w-2 h-2 rounded-full bg-primary" />}
               </div>
               <span className="text-sm text-foreground">{opt}</span>
@@ -128,30 +115,34 @@ export function ListeningModule() {
         </div>
       );
     }
-
     return (
-      <input
-        type="text"
-        value={answer}
+      <input type="text" value={answer}
         onChange={e => dispatch({ type: 'SET_ANSWER', module: 'listening', questionId: q.id, answer: e.target.value })}
         onPaste={e => e.preventDefault()}
         className="w-full px-4 py-2 rounded-lg bg-secondary border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-        placeholder="Type your answer..."
-      />
+        placeholder="Type your answer..." />
     );
   };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <TopBar
-        title={`Listening — ${section.title}`}
-        totalQuestions={40}
-        currentQuestion={answeredCount}
-        totalSeconds={2400}
-        onTimeUp={handleSubmit}
-      />
+      <TopBar title={`Listening — ${section.title}`} totalQuestions={40} currentQuestion={answeredCount}
+        totalSeconds={2400} onTimeUp={handleSubmit} tabSwitchCount={tabSwitchCount} />
 
       <div className="flex-1 max-w-4xl mx-auto w-full px-6 py-6">
+        {/* Section progress - no going back */}
+        <div className="flex items-center gap-2 mb-4">
+          {[0, 1, 2, 3].map(i => (
+            <div key={i} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${
+              i === currentSection ? 'bg-primary text-primary-foreground' :
+              sectionComplete[i] ? 'bg-success/20 text-success' : 'bg-secondary text-muted-foreground'
+            }`}>
+              {i < currentSection && <Lock className="w-3 h-3" />}
+              Section {i + 1}
+            </div>
+          ))}
+        </div>
+
         {/* Audio Player */}
         <div className="mb-6 p-4 rounded-xl bg-card border border-border">
           <div className="flex items-center gap-4 mb-3">
@@ -168,18 +159,16 @@ export function ListeningModule() {
             <span className="text-xs text-muted-foreground">{Math.round(audioProgress)}%</span>
           </div>
           {!showQuestions && !isPlaying && audioProgress === 0 && (
-            <p className="text-xs text-muted-foreground mt-2">Press play to listen to the audio. Questions will appear after the audio finishes.</p>
+            <p className="text-xs text-muted-foreground mt-2">Press play to listen. Questions appear after audio ends.</p>
           )}
         </div>
 
-        {/* Questions */}
         {(showQuestions || audioProgress > 0) && (
           <div className="space-y-6">
-            {section.questions.map((q, i) => (
+            {section.questions.map(q => (
               <div key={q.id} className="p-4 rounded-xl bg-card border border-border">
                 <p className="text-sm font-medium text-foreground mb-3">
-                  <span className="text-primary mr-2">Q{q.id}.</span>
-                  {q.text}
+                  <span className="text-primary mr-2">Q{q.id}.</span>{q.text}
                 </p>
                 {renderQuestion(q)}
               </div>
@@ -187,18 +176,11 @@ export function ListeningModule() {
           </div>
         )}
 
-        {/* Navigation */}
         <div className="flex justify-between mt-8 pb-8">
-          <div className="text-sm text-muted-foreground">
-            Section {currentSection + 1} of 4
-          </div>
-          <div className="flex gap-3">
-            <Button onClick={nextSection} variant="default">
-              {currentSection < 3 ? (
-                <>Next Section <SkipForward className="w-4 h-4 ml-2" /></>
-              ) : 'Submit Listening'}
-            </Button>
-          </div>
+          <div className="text-sm text-muted-foreground">Section {currentSection + 1} of 4</div>
+          <Button onClick={nextSection}>
+            {currentSection < 3 ? (<>Next Section <SkipForward className="w-4 h-4 ml-2" /></>) : 'Submit Listening'}
+          </Button>
         </div>
       </div>
     </div>

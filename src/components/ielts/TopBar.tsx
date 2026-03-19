@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useTest } from './TestProvider';
-import { Clock, BookOpen } from 'lucide-react';
+import { Clock, BookOpen, AlertTriangle, ShieldAlert } from 'lucide-react';
 
 interface TopBarProps {
   title: string;
@@ -8,50 +8,47 @@ interface TopBarProps {
   currentQuestion?: number;
   totalSeconds: number;
   onTimeUp?: () => void;
+  tabSwitchCount?: number;
 }
 
-export function TopBar({ title, totalQuestions, currentQuestion, totalSeconds, onTimeUp }: TopBarProps) {
-  const { state, dispatch } = useTest();
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+export function TopBar({ title, totalQuestions, currentQuestion, totalSeconds, onTimeUp, tabSwitchCount = 0 }: TopBarProps) {
+  const { dispatch } = useTest();
+  const [timeLeft, setTimeLeft] = useState(totalSeconds);
   const onTimeUpRef = useRef(onTimeUp);
   onTimeUpRef.current = onTimeUp;
+  const hasSubmittedRef = useRef(false);
 
+  // Single clean timer
   useEffect(() => {
-    dispatch({ type: 'SET_TIMER', seconds: totalSeconds });
-    dispatch({ type: 'SET_TIMER_RUNNING', running: true });
-
-    timerRef.current = setInterval(() => {
-      dispatch({ type: 'SET_TIMER', seconds: Math.max(0, state.timerSeconds - 1) });
-    }, 1000);
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalSeconds]);
-
-  useEffect(() => {
-    if (state.timerSeconds <= 0 && state.isTimerRunning) {
-      dispatch({ type: 'SET_TIMER_RUNNING', running: false });
-      if (timerRef.current) clearInterval(timerRef.current);
-      onTimeUpRef.current?.();
-    }
-  }, [state.timerSeconds, state.isTimerRunning, dispatch]);
-
-  // Update timer each second
-  useEffect(() => {
-    if (!state.isTimerRunning) return;
+    setTimeLeft(totalSeconds);
+    hasSubmittedRef.current = false;
 
     const interval = setInterval(() => {
-      dispatch({ type: 'SET_TIMER', seconds: Math.max(0, state.timerSeconds - 1) });
+      setTimeLeft(prev => {
+        const next = prev - 1;
+        if (next <= 0 && !hasSubmittedRef.current) {
+          hasSubmittedRef.current = true;
+          clearInterval(interval);
+          // Auto-submit on timer expiry
+          setTimeout(() => onTimeUpRef.current?.(), 100);
+          return 0;
+        }
+        return Math.max(0, next);
+      });
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [state.isTimerRunning, state.timerSeconds, dispatch]);
+  }, [totalSeconds]);
 
-  const minutes = Math.floor(state.timerSeconds / 60);
-  const seconds = state.timerSeconds % 60;
-  const isLowTime = state.timerSeconds < 300;
+  // Sync to context for other components
+  useEffect(() => {
+    dispatch({ type: 'SET_TIMER', seconds: timeLeft });
+  }, [timeLeft, dispatch]);
+
+  const minutes = Math.floor(timeLeft / 60);
+  const seconds = timeLeft % 60;
+  const isLowTime = timeLeft < 300;
+  const isCritical = timeLeft < 60;
 
   return (
     <div className="sticky top-0 z-50 flex items-center justify-between px-6 py-3 bg-card border-b border-border backdrop-blur-sm">
@@ -60,15 +57,26 @@ export function TopBar({ title, totalQuestions, currentQuestion, totalSeconds, o
         <h2 className="text-lg font-semibold font-heading text-foreground">{title}</h2>
       </div>
 
-      <div className="flex items-center gap-6">
-        {totalQuestions && (
+      <div className="flex items-center gap-4">
+        {/* Tab switch warning */}
+        {tabSwitchCount > 0 && (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive/15 text-destructive text-xs font-semibold">
+            <ShieldAlert className="w-3.5 h-3.5" />
+            {tabSwitchCount}/3
+          </div>
+        )}
+
+        {totalQuestions != null && (
           <div className="text-sm text-muted-foreground">
             Question <span className="text-foreground font-medium">{currentQuestion}</span> / {totalQuestions}
           </div>
         )}
-        <div className={`flex items-center gap-2 px-4 py-1.5 rounded-lg font-mono text-sm font-semibold ${
+
+        <div className={`flex items-center gap-2 px-4 py-1.5 rounded-lg font-mono text-sm font-semibold transition-colors ${
+          isCritical ? 'bg-destructive/30 text-destructive animate-pulse' :
           isLowTime ? 'bg-destructive/20 text-destructive' : 'bg-secondary text-secondary-foreground'
         }`}>
+          {isCritical && <AlertTriangle className="w-4 h-4" />}
           <Clock className="w-4 h-4" />
           {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
         </div>
