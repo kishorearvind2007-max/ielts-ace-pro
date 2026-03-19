@@ -3,6 +3,7 @@ import { useTest } from './TestProvider';
 import { TopBar } from './TopBar';
 import { writingContent } from '@/data/ielts-content';
 import { roundIELTS } from '@/lib/scoring';
+import { useAntiCheat } from '@/hooks/use-anti-cheat';
 import { Button } from '@/components/ui/button';
 import { Send, Loader2, BarChart3 } from 'lucide-react';
 
