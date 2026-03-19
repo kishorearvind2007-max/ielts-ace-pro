@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTest } from './TestProvider';
 import { Clock, BookOpen, AlertTriangle, ShieldAlert } from 'lucide-react';
 
@@ -11,14 +11,13 @@ interface TopBarProps {
   tabSwitchCount?: number;
 }
 
-export function TopBar({ title, totalQuestions, currentQuestion, totalSeconds, onTimeUp, tabSwitchCount = 0 }: TopBarProps) {
+export const TopBar = React.memo(function TopBar({ title, totalQuestions, currentQuestion, totalSeconds, onTimeUp, tabSwitchCount = 0 }: TopBarProps) {
   const { dispatch } = useTest();
   const [timeLeft, setTimeLeft] = useState(totalSeconds);
   const onTimeUpRef = useRef(onTimeUp);
   onTimeUpRef.current = onTimeUp;
   const hasSubmittedRef = useRef(false);
 
-  // Single clean timer
   useEffect(() => {
     setTimeLeft(totalSeconds);
     hasSubmittedRef.current = false;
@@ -29,7 +28,6 @@ export function TopBar({ title, totalQuestions, currentQuestion, totalSeconds, o
         if (next <= 0 && !hasSubmittedRef.current) {
           hasSubmittedRef.current = true;
           clearInterval(interval);
-          // Auto-submit on timer expiry
           setTimeout(() => onTimeUpRef.current?.(), 100);
           return 0;
         }
@@ -40,7 +38,6 @@ export function TopBar({ title, totalQuestions, currentQuestion, totalSeconds, o
     return () => clearInterval(interval);
   }, [totalSeconds]);
 
-  // Sync to context for other components
   useEffect(() => {
     dispatch({ type: 'SET_TIMER', seconds: timeLeft });
   }, [timeLeft, dispatch]);
@@ -58,7 +55,6 @@ export function TopBar({ title, totalQuestions, currentQuestion, totalSeconds, o
       </div>
 
       <div className="flex items-center gap-4">
-        {/* Tab switch warning */}
         {tabSwitchCount > 0 && (
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive/15 text-destructive text-xs font-semibold">
             <ShieldAlert className="w-3.5 h-3.5" />
@@ -83,4 +79,4 @@ export function TopBar({ title, totalQuestions, currentQuestion, totalSeconds, o
       </div>
     </div>
   );
-}
+});
