@@ -1,16 +1,32 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { TestProvider, useTest } from '@/components/ielts/TestProvider';
+import { HomeScreen } from '@/components/ielts/HomeScreen';
+import { ListeningModule } from '@/components/ielts/ListeningModule';
+import { ReadingModule } from '@/components/ielts/ReadingModule';
+import { WritingModule } from '@/components/ielts/WritingModule';
+import { SpeakingModule } from '@/components/ielts/SpeakingModule';
+import { ResultsScreen } from '@/components/ielts/ResultsScreen';
 
-// IMPORTANT: Fully REPLACE this with your own code
-const PlaceholderIndex = () => {
-  // PLACEHOLDER: Replace this entire return statement with the user's app.
-  // The inline background color is intentionally not part of the design system.
+function TestApp() {
+  const { state } = useTest();
+
+  if (state.phase === 'results') return <ResultsScreen />;
+  
+  if (state.phase === 'test' && state.currentModule) {
+    switch (state.currentModule) {
+      case 'listening': return <ListeningModule />;
+      case 'reading': return <ReadingModule />;
+      case 'writing': return <WritingModule />;
+      case 'speaking': return <SpeakingModule />;
+    }
+  }
+
+  return <HomeScreen />;
+}
+
+export default function Index() {
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: '#fcfbf8' }}>
-      <img data-lovable-blank-page-placeholder="REMOVE_THIS" src="/placeholder.svg" alt="Your app will live here!" />
-    </div>
+    <TestProvider>
+      <TestApp />
+    </TestProvider>
   );
-};
-
-const Index = PlaceholderIndex;
-
-export default Index;
+}
