@@ -18,7 +18,42 @@ type NvidiaChatResponse = {
 const NVIDIA_API_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
 const NVIDIA_MODEL = process.env.NVIDIA_MODEL ?? 'minimaxai/minimax-m2.1';
 function buildPrompt(difficulty: string) {
-  return `Generate IELTS Academic Writing questions in JSON only.\n\nReturn JSON with this shape:\n{\n  \"task1\": {\n    \"prompt\": \"Task 1: ...\",\n    \"chartType\": \"bar\" | \"line\" | \"pie\" | \"table\" | \"process\" | \"map\",\n    \"chartData\": {\n      \"labels\": [\"...\"],\n      \"datasets\": [\n        { \"label\": \"...\", \"data\": [number, ...] }\n      ]\n    }\n  },\n  \"task2\": {\n    \"prompt\": \"Task 2: ...\"\n  }\n}\n\nTask 1 requirements:\n- Use one of: Bar chart, Line graph, Pie chart, Table, Process diagram, Map comparison.\n- Provide a realistic data description in the prompt (no actual image).\n- Include 5 to 8 data points in chartData.\n- Ensure the data allows comparison and trend analysis.\n- Topic domain: Education, Technology, Environment, Health, Economy, Transportation.\n- Difficulty: ${difficulty}.\n- Output format: \"Task 1: The chart below shows ... Summarise the information by selecting and reporting the main features, and make comparisons where relevant.\"\n\nTask 2 requirements:\n- Use one of: Opinion, Discussion, Problem-Solution, Advantage-Disadvantage, Direct Questions.\n- Topic domain: Education, Technology, Environment, Society, Health, Government, Economy, Culture.\n- Difficulty: ${difficulty}.\n- Avoid overly abstract topics.\n- Output format: \"Task 2: Write about the following topic: ... Give reasons for your answer and include any relevant examples from your own knowledge or experience.\"\n\nReturn JSON only. No markdown, no extra text.`;
+  return `Generate IELTS Academic Writing questions in JSON only.
+
+Return JSON with this shape:
+{
+  "task1": {
+    "prompt": "Task 1: ...",
+    "chartType": "bar" | "line" | "pie" | "table" | "process" | "map",
+    "chartData": {
+      "labels": ["..."],
+      "datasets": [
+        { "label": "...", "data": [number, ...] }
+      ]
+    }
+  },
+  "task2": {
+    "prompt": "Task 2: ..."
+  }
+}
+
+Task 1 requirements:
+- Use one of: Bar chart, Line graph, Pie chart, Table, Process diagram, Map comparison.
+- Provide a realistic data description in the prompt (no actual image).
+- Include 5 to 8 data points in chartData.
+- Ensure the data allows comparison and trend analysis.
+- Topic domain: Education, Technology, Environment, Health, Economy, Transportation.
+- Difficulty: ${difficulty}.
+- Output format: "Task 1: The chart below shows ... Summarise the information by selecting and reporting the main features, and make comparisons where relevant."
+
+Task 2 requirements:
+- Use one of: Opinion, Discussion, Problem-Solution, Advantage-Disadvantage, Direct Questions.
+- Topic domain: Education, Technology, Environment, Society, Health, Government, Economy, Culture.
+- Difficulty: ${difficulty}.
+- Avoid overly abstract topics.
+- Output format: "Task 2: Write about the following topic: ... Give reasons for your answer and include any relevant examples from your own knowledge or experience."
+
+Return JSON only. No markdown, no extra text.`;
 }
 
 function readNonStreamingContent(payload: NvidiaChatResponseEnvelope): string {

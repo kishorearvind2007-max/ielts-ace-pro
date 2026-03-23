@@ -6,7 +6,6 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   { ignores: ["dist", ".next", "next-env.d.ts"] },
-  nextPlugin.configs.recommended,
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],
@@ -15,9 +14,11 @@ export default tseslint.config(
       globals: globals.browser,
     },
     plugins: {
+      "@next/next": nextPlugin,
       "react-hooks": reactHooks,
     },
     rules: {
+      ...nextPlugin.configs.recommended.rules,
       ...reactHooks.configs.recommended.rules,
       "@typescript-eslint/no-unused-vars": "off",
       "@typescript-eslint/no-explicit-any": "off",

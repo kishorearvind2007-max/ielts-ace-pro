@@ -45,7 +45,7 @@ export function HomeScreen() {
         >
           <h3 className="text-sm font-semibold text-foreground mb-2">AI Evaluation Enabled</h3>
           <p className="text-xs text-muted-foreground">
-            Writing and Speaking modules are evaluated through secure server routes. Configure ANTHROPIC_API_KEY in the server environment.
+            Writing and Speaking modules are evaluated through secure server routes. Configure required AI keys in the server environment.
           </p>
         </motion.div>
 

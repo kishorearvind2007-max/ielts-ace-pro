@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useTest } from './TestProvider';
 import { TopBar } from './TopBar';
 import { writingContent } from '@/data/ielts-content';
@@ -20,9 +21,10 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart';
-import type { WritingTask } from '@/lib/ielts-types';
+import type { WritingEvaluationApiResponse, WritingTask } from '@/lib/ielts-types';
 
 export function WritingModule() {
+  const router = useRouter();
   const { state, dispatch, submitModule } = useTest();
   const [currentTask, setCurrentTask] = useState(0);
   const [isEvaluating, setIsEvaluating] = useState(false);
@@ -71,7 +73,12 @@ export function WritingModule() {
   const text = currentTask === 0 ? state.writingResponses.task1 : state.writingResponses.task2;
   const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
 
-  const evaluateWithAI = useCallback(async (taskText: string, taskType: string) => {
+  const evaluateWithAI = useCallback(async (essay: string, taskType: string): Promise<WritingEvaluationApiResponse | null> => {
+    const trimmedEssay = essay.trim();
+    if (!trimmedEssay) {
+      return null;
+    }
+
     try {
       const response = await fetch('/api/evaluate-writing', {
         method: 'POST',
@@ -79,68 +86,128 @@ export function WritingModule() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          taskText,
+          essay: trimmedEssay,
           taskType,
+          wordCount: trimmedEssay.split(/\s+/).length,
         }),
       });
 
       if (!response.ok) throw new Error('API error');
-      return await response.json();
+      return await response.json() as WritingEvaluationApiResponse;
     } catch {
       return null;
     }
   }, []);
 
+  const getBandFromEvaluation = useCallback((evaluation: WritingEvaluationApiResponse | null) => {
+    if (!evaluation) {
+      return 5.0;
+    }
+
+    return evaluation.overall_band;
+  }, []);
+
   const handleSubmit = useCallback(async () => {
+    if (isEvaluating) return;
     setIsEvaluating(true);
 
-    let task1Band = 5.0;
-    let task2Band = 5.0;
-    let criteriaScores: Record<string, { band: number; feedback: string; examples: string[] }> = {};
-    let strengths: string[] = [];
-    let improvements: string[] = [];
-    let examinerComment = '';
+    try {
+      let task1Band = 5.0;
+      let task2Band = 5.0;
+      let criteriaScores: Record<string, { band: number; feedback: string; examples: string[] }> = {};
+      let strengths: string[] = [];
+      let improvements: string[] = [];
+      let examinerComment = '';
+      let writingEvaluations: { task1: WritingEvaluationApiResponse; task2: WritingEvaluationApiResponse } | undefined;
 
-    const [task1Result, task2Result] = await Promise.all([
-      evaluateWithAI(state.writingResponses.task1, 'Task 1 (Academic - describe a graph)'),
-      evaluateWithAI(state.writingResponses.task2, 'Task 2 (Essay)'),
-    ]);
+      const [task1Result, task2Result] = await Promise.all([
+        evaluateWithAI(state.writingResponses.task1, 'Task 1 (Academic - describe a graph)'),
+        evaluateWithAI(state.writingResponses.task2, 'Task 2 (Essay)'),
+      ]);
 
-    if (task1Result) task1Band = task1Result.overall_band;
-    if (task2Result) {
-      task2Band = task2Result.overall_band;
-      criteriaScores = {
-        'Task Response': task2Result.task_achievement,
-        'Coherence & Cohesion': task2Result.coherence_cohesion,
-        'Lexical Resource': task2Result.lexical_resource,
-        'Grammatical Range': task2Result.grammatical_range,
-      };
-      strengths = task2Result.strengths || [];
-      improvements = task2Result.improvements || [];
-      examinerComment = task2Result.examiner_comment || '';
+      if (task1Result) {
+        task1Band = getBandFromEvaluation(task1Result);
+      } else {
+        const wc1 = state.writingResponses.task1.trim() ? state.writingResponses.task1.trim().split(/\s+/).length : 0;
+        task1Band = wc1 >= 150 ? 6.0 : wc1 >= 100 ? 5.0 : 4.0;
+      }
+      if (task2Result) {
+        task2Band = getBandFromEvaluation(task2Result);
+        criteriaScores = {
+          'Task Response': {
+            band: task2Result.scoring.taskResponseScore,
+            feedback: task2Result.scoring.taskResponseHighLevel,
+            examples: task2Result.scoring.taskResponseWeaknesses,
+          },
+          'Coherence & Cohesion': {
+            band: task2Result.scoring.coherenceScore,
+            feedback: task2Result.scoring.coherenceHighLevel,
+            examples: task2Result.scoring.coherenceWeaknesses,
+          },
+          'Lexical Resource': {
+            band: task2Result.languageAnalysis.lexicalResourceScore,
+            feedback: task2Result.languageAnalysis.lexicalResourceHighLevel,
+            examples: task2Result.languageAnalysis.lexicalResourceWeaknesses,
+          },
+          'Grammatical Range': {
+            band: task2Result.languageAnalysis.grammaticalRangeScore,
+            feedback: task2Result.languageAnalysis.grammaticalRangeHighLevel,
+            examples: task2Result.languageAnalysis.grammaticalRangeWeaknesses,
+          },
+        };
+        strengths = task2Result.overview.strengths || [];
+        improvements = task2Result.overview.weaknesses || [];
+        examinerComment = task2Result.overview.overview || '';
+      } else {
+        const wc2 = state.writingResponses.task2.trim() ? state.writingResponses.task2.trim().split(/\s+/).length : 0;
+        task2Band = wc2 >= 250 ? 6.0 : wc2 >= 150 ? 5.0 : 4.0;
+      }
+
+      if (task1Result && task2Result) {
+        writingEvaluations = {
+          task1: task1Result,
+          task2: task2Result,
+        };
+
+        // Store results for the dedicated results page
+        const resultData = {
+          task1: task1Result,
+          task2: task2Result,
+          overallBand: roundIELTS((task1Band + task2Band * 2) / 3),
+          timestamp: new Date().toISOString(),
+        };
+        localStorage.setItem('writingResult', JSON.stringify(resultData));
+      }
+
+      if (!task1Result && !task2Result) {
+        // Fallback: estimate based on word count
+        const wc1 = state.writingResponses.task1.trim().split(/\s+/).length;
+        const wc2 = state.writingResponses.task2.trim().split(/\s+/).length;
+        task1Band = wc1 >= 150 ? 6.0 : wc1 >= 100 ? 5.0 : 4.0;
+        task2Band = wc2 >= 250 ? 6.0 : wc2 >= 150 ? 5.0 : 4.0;
+        examinerComment = 'Both AI models were unavailable. Scores were estimated from word count as a final fallback.';
+      }
+
+      const writingBand = roundIELTS((task1Band + task2Band * 2) / 3);
+
+      submitModule({
+        module: 'writing',
+        band: writingBand,
+        criteriaScores,
+        strengths,
+        improvements,
+        examinerComment,
+        writingEvaluations,
+      });
+
+      // Navigate to dedicated results page if we have AI evaluations
+      if (task1Result && task2Result) {
+        router.push('/result/writing');
+      }
+    } finally {
+      setIsEvaluating(false);
     }
-
-    if (!task1Result && !task2Result) {
-      // Fallback: estimate based on word count
-      const wc1 = state.writingResponses.task1.trim().split(/\s+/).length;
-      const wc2 = state.writingResponses.task2.trim().split(/\s+/).length;
-      task1Band = wc1 >= 150 ? 6.0 : wc1 >= 100 ? 5.0 : 4.0;
-      task2Band = wc2 >= 250 ? 6.0 : wc2 >= 150 ? 5.0 : 4.0;
-      examinerComment = 'AI evaluation unavailable. Score estimated from word count. Configure ANTHROPIC_API_KEY on the server for detailed feedback.';
-    }
-
-    const writingBand = roundIELTS((task1Band + task2Band * 2) / 3);
-
-    submitModule({
-      module: 'writing',
-      band: writingBand,
-      criteriaScores,
-      strengths,
-      improvements,
-      examinerComment,
-    });
-    setIsEvaluating(false);
-  }, [state.writingResponses, evaluateWithAI, submitModule]);
+  }, [isEvaluating, state.writingResponses, evaluateWithAI, submitModule, getBandFromEvaluation, router]);
 
   // Simple chart rendering for Task 1
   const renderChart = () => {
@@ -326,7 +393,7 @@ export function WritingModule() {
           <textarea
             value={text}
             onChange={e => dispatch({ type: 'SET_WRITING', task: currentTask === 0 ? 'task1' : 'task2', text: e.target.value })}
-            onPaste={e => e.preventDefault()}
+            data-allow-paste="true"
             className="w-full h-80 p-4 rounded-xl bg-card border border-border text-foreground text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-ring"
             placeholder="Write your response here..."
           />
@@ -338,7 +405,7 @@ export function WritingModule() {
 
         {/* Submit */}
         <div className="flex justify-end mt-6 pb-8">
-          <Button onClick={handleSubmit} disabled={isEvaluating}>
+          <Button onClick={() => void handleSubmit()} disabled={isEvaluating}>
             {isEvaluating ? (
               <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Evaluating...</>
             ) : (

@@ -51,6 +51,71 @@ export interface SpeakingPart {
   speakTime?: number;
 }
 
+export interface WritingVocabularyExplanation {
+  word: string;
+  meaning: string;
+  usage: string;
+}
+
+export interface WritingOverview {
+  overview: string;
+  strengths: string[];
+  weaknesses: string[];
+}
+
+export interface WritingScoring {
+  taskResponseHighLevel: string;
+  taskResponseStrengths: string[];
+  taskResponseWeaknesses: string[];
+  coherenceHighLevel: string;
+  coherenceStrengths: string[];
+  coherenceWeaknesses: string[];
+  taskResponseScore: number;
+  coherenceScore: number;
+}
+
+export interface WritingLanguageAnalysis {
+  correctedEssay: string;
+  keyChanges: string[];
+  lexicalResourceHighLevel: string;
+  lexicalResourceStrengths: string[];
+  lexicalResourceWeaknesses: string[];
+  grammaticalRangeHighLevel: string;
+  grammaticalRangeStrengths: string[];
+  grammaticalRangeWeaknesses: string[];
+  lexicalResourceScore: number;
+  grammaticalRangeScore: number;
+}
+
+export interface WritingImprovement {
+  improvedEssay: string;
+  vocabularyExplanations: WritingVocabularyExplanation[];
+  expandIdeas: string[];
+  alternativeDirection: string;
+  alternativeEssay: string;
+  alternativeVocabulary: WritingVocabularyExplanation[];
+}
+
+export interface WritingEvaluationReport {
+  overview: WritingOverview;
+  scoring: WritingScoring;
+  languageAnalysis: WritingLanguageAnalysis;
+  improvement: WritingImprovement;
+}
+
+export interface WritingEvaluationApiResponse extends WritingEvaluationReport {
+  evaluation_mode: 'ai' | 'fallback';
+  model_used?: string;
+  warning?: string;
+  overall_band: number;
+  word_count: number;
+}
+
+export interface WritingTaskEvaluations {
+  task1: WritingEvaluationApiResponse;
+  task2: WritingEvaluationApiResponse;
+}
+
 export interface ModuleResult {
   module: TestModule;
   band: number;
@@ -61,6 +126,7 @@ export interface ModuleResult {
   strengths?: string[];
   improvements?: string[];
   examinerComment?: string;
+  writingEvaluations?: WritingTaskEvaluations;
 }
 
 export interface TestState {
