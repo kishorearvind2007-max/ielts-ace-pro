@@ -1,5 +1,14 @@
 import { NextResponse } from 'next/server';
 import { generateWritingQuestions } from '@/lib/nvidia-api';
+import { writingContent } from '@/data/ielts-content';
+
+function getFallbackWritingQuestions() {
+  return {
+    task1: writingContent.find(task => task.type === 'task1') ?? writingContent[0],
+    task2: writingContent.find(task => task.type === 'task2') ?? writingContent[1],
+    source: 'fallback',
+  };
+}
 
 export async function POST(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -7,9 +16,10 @@ export async function POST(req: Request) {
 
   try {
     const questions = await generateWritingQuestions(difficulty);
-    return NextResponse.json(questions);
+    return NextResponse.json({ ...questions, source: 'nvidia' });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to generate questions';
-    return NextResponse.json({ error: message }, { status: 500 });
+    const fallback = getFallbackWritingQuestions();
+    return NextResponse.json({ ...fallback, warning: message });
   }
 }
