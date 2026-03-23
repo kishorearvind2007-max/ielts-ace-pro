@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useTest } from './TestProvider';
 import { TopBar } from './TopBar';
 import { writingContent } from '@/data/ielts-content';
@@ -6,13 +6,68 @@ import { roundIELTS } from '@/lib/scoring';
 import { useAntiCheat } from '@/hooks/use-anti-cheat';
 import { Button } from '@/components/ui/button';
 import { Send, Loader2, BarChart3 } from 'lucide-react';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+} from '@/components/ui/chart';
+import type { WritingTask } from '@/lib/ielts-types';
 
 export function WritingModule() {
   const { state, dispatch, submitModule } = useTest();
   const [currentTask, setCurrentTask] = useState(0);
   const [isEvaluating, setIsEvaluating] = useState(false);
+  const [generatedTasks, setGeneratedTasks] = useState<WritingTask[] | null>(null);
+  const [isLoadingTasks, setIsLoadingTasks] = useState(true);
+  const [taskLoadError, setTaskLoadError] = useState<string | null>(null);
 
-  const task = writingContent[currentTask];
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadQuestions = async () => {
+      try {
+        setIsLoadingTasks(true);
+        setTaskLoadError(null);
+        const response = await fetch('/api/generate-writing-questions', { method: 'POST' });
+
+        if (!response.ok) {
+          throw new Error('Unable to generate questions');
+        }
+
+        const data = await response.json();
+        if (isMounted) {
+          setGeneratedTasks([data.task1, data.task2]);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setTaskLoadError(error instanceof Error ? error.message : 'Failed to load questions');
+          setGeneratedTasks(null);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingTasks(false);
+        }
+      }
+    };
+
+    loadQuestions();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const tasks = generatedTasks ?? writingContent;
+  const task = tasks[currentTask];
   const text = currentTask === 0 ? state.writingResponses.task1 : state.writingResponses.task2;
   const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
 
@@ -91,14 +146,88 @@ export function WritingModule() {
   const renderChart = () => {
     if (!task.chartData) return null;
     const { labels, datasets } = task.chartData;
-    const maxVal = Math.max(...datasets.flatMap(d => d.data));
     const colors = ['hsl(42, 65%, 55%)', 'hsl(200, 60%, 50%)', 'hsl(142, 60%, 45%)', 'hsl(0, 72%, 51%)'];
+    const inferredChartType = labels.every(label => /^\d{4}$/.test(label)) ? 'line' : 'bar';
+    const chartType = task.chartType ?? inferredChartType;
+
+    if (chartType === 'bar') {
+      const series = datasets.map((ds, index) => ({
+        key: `series${index + 1}`,
+        label: ds.label,
+        color: colors[index % colors.length],
+      }));
+
+      const chartRows = labels.map((label, index) => {
+        const row: Record<string, number | string> = { category: label };
+        series.forEach((item, i) => {
+          row[item.key] = datasets[i]?.data[index] ?? 0;
+        });
+        return row;
+      });
+
+      return (
+        <div className="p-4 rounded-xl bg-card border border-border mb-4">
+          <div className="flex items-center gap-2 mb-4">
+            <BarChart3 className="w-4 h-4 text-primary" />
+            <span className="text-sm font-medium text-foreground">Task 1 Data ({chartType})</span>
+          </div>
+          <ChartContainer
+            config={Object.fromEntries(series.map(item => [item.key, { label: item.label, color: item.color }]))}
+            className="h-64 w-full"
+          >
+            <BarChart data={chartRows} margin={{ left: 8, right: 16, top: 8, bottom: 8 }}>
+              <CartesianGrid vertical={false} />
+              <XAxis dataKey="category" tickLine={false} axisLine={false} />
+              <YAxis tickLine={false} axisLine={false} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartLegend content={<ChartLegendContent />} />
+              {series.map(item => (
+                <Bar key={item.key} dataKey={item.key} fill={`var(--color-${item.key})`} radius={[4, 4, 0, 0]} />
+              ))}
+            </BarChart>
+          </ChartContainer>
+        </div>
+      );
+    }
+
+    if (chartType !== 'line') {
+      return (
+        <div className="p-4 rounded-xl bg-card border border-border mb-4">
+          <div className="flex items-center gap-2 mb-4">
+            <BarChart3 className="w-4 h-4 text-primary" />
+            <span className="text-sm font-medium text-foreground">Task 1 Data ({chartType})</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-foreground">
+              <thead>
+                <tr className="text-left border-b border-border">
+                  <th className="py-2 pr-3">Category</th>
+                  {datasets.map(ds => (
+                    <th key={ds.label} className="py-2 pr-3">{ds.label}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {labels.map((label, index) => (
+                  <tr key={label} className="border-b border-border/60">
+                    <td className="py-2 pr-3 font-medium">{label}</td>
+                    {datasets.map(ds => (
+                      <td key={`${ds.label}-${label}`} className="py-2 pr-3">{ds.data[index]}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="p-4 rounded-xl bg-card border border-border mb-4">
         <div className="flex items-center gap-2 mb-4">
           <BarChart3 className="w-4 h-4 text-primary" />
-          <span className="text-sm font-medium text-foreground">Internet Access by Country (%)</span>
+          <span className="text-sm font-medium text-foreground">Task 1 Data (line)</span>
         </div>
         <div className="relative h-48">
           <svg viewBox="0 0 600 200" className="w-full h-full">
@@ -141,6 +270,25 @@ export function WritingModule() {
 
   const { tabSwitchCount } = useAntiCheat({ onAutoSubmit: handleSubmit });
 
+  if (isLoadingTasks && !generatedTasks) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <TopBar
+          title="Writing — Loading"
+          totalSeconds={3600}
+          onTimeUp={handleSubmit}
+          tabSwitchCount={tabSwitchCount}
+        />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex items-center gap-3 text-sm text-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Generating writing questions...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <TopBar
@@ -151,6 +299,9 @@ export function WritingModule() {
       />
 
       <div className="flex-1 max-w-4xl mx-auto w-full px-6 py-6">
+        {taskLoadError && (
+          <div className="mb-4 text-xs text-warning">Using default questions: {taskLoadError}</div>
+        )}
         {/* Task indicator */}
         <div className="flex gap-3 mb-6">
           {[0, 1].map(i => (

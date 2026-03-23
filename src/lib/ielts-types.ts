@@ -32,6 +32,7 @@ export interface WritingTask {
   prompt: string;
   minWords: number;
   recommendedMinutes: number;
+  chartType?: 'bar' | 'line' | 'pie' | 'table' | 'process' | 'map';
   chartData?: {
     labels: string[];
     datasets: { label: string; data: number[] }[];
