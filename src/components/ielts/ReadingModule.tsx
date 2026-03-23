@@ -1,36 +1,92 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useTest } from './TestProvider';
 import { TopBar } from './TopBar';
 import { readingContent } from '@/data/ielts-content';
 import { rawToBand, scoreAnswers } from '@/lib/scoring';
 import { useAntiCheat } from '@/hooks/use-anti-cheat';
 import { Button } from '@/components/ui/button';
-import { ChevronRight, Send, Lock } from 'lucide-react';
+import { ChevronRight, Send, Lock, Loader2 } from 'lucide-react';
+import type { ReadingPassage } from '@/lib/ielts-types';
 
 export function ReadingModule() {
   const { state, dispatch, submitModule } = useTest();
   const [currentPassage, setCurrentPassage] = useState(0);
-  const [highestPassage, setHighestPassage] = useState(0);
+  const [generatedPassages, setGeneratedPassages] = useState<ReadingPassage[] | null>(null);
+  const [isLoadingPassages, setIsLoadingPassages] = useState(true);
+  const [passageLoadError, setPassageLoadError] = useState<string | null>(null);
 
-  const passage = readingContent[currentPassage];
-  const allAnswerKeys = readingContent.reduce<Record<number, string>>((acc, p) => ({ ...acc, ...p.answerKey }), {});
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadReadingPassages = async () => {
+      try {
+        setIsLoadingPassages(true);
+        setPassageLoadError(null);
+        const response = await fetch('/api/generate-reading-questions', { method: 'POST' });
+
+        if (!response.ok) {
+          throw new Error('Unable to generate reading passages');
+        }
+
+        const data = await response.json();
+        if (isMounted) {
+          setGeneratedPassages(Array.isArray(data?.passages) ? data.passages : null);
+          if (typeof data?.warning === 'string') {
+            setPassageLoadError(data.warning);
+          }
+        }
+      } catch (error) {
+        if (isMounted) {
+          setPassageLoadError(error instanceof Error ? error.message : 'Failed to load reading passages');
+          setGeneratedPassages(null);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingPassages(false);
+        }
+      }
+    };
+
+    loadReadingPassages();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const passages = generatedPassages ?? readingContent;
+  const passage = passages[currentPassage];
+  const allAnswerKeys = passages.reduce<Record<number, string>>((acc, p) => ({ ...acc, ...p.answerKey }), {});
   const answeredCount = Object.keys(state.answers.reading || {}).length;
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = () => {
     const raw = scoreAnswers(state.answers.reading || {}, allAnswerKeys);
     const band = rawToBand(raw);
     submitModule({ module: 'reading', band, rawScore: raw, totalQuestions: 40, answers: state.answers.reading });
-  }, [state.answers.reading, allAnswerKeys, submitModule]);
+  };
 
-  const { tabSwitchCount } = useAntiCheat({ onAutoSubmit: handleSubmit });
-
-  const goNextPassage = useCallback(() => {
+  const goNextPassage = () => {
     if (currentPassage < 2) {
       const next = currentPassage + 1;
       setCurrentPassage(next);
-      setHighestPassage(Math.max(highestPassage, next));
     }
-  }, [currentPassage, highestPassage]);
+  };
+
+  const { tabSwitchCount } = useAntiCheat({ onAutoSubmit: handleSubmit });
+
+  if (isLoadingPassages && !generatedPassages) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <TopBar title="Reading — Loading" totalSeconds={3600} onTimeUp={handleSubmit} tabSwitchCount={tabSwitchCount} />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex items-center gap-3 text-sm text-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Generating IELTS reading passages...
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const renderQuestion = (q: typeof passage.questions[0]) => {
     const answer = state.answers.reading?.[q.id] || '';
@@ -87,6 +143,9 @@ export function ReadingModule() {
       <div className="flex-1 flex flex-col lg:flex-row">
         {/* Passage */}
         <div className="lg:w-1/2 border-r border-border overflow-y-auto p-6" style={{ maxHeight: 'calc(100vh - 60px)' }}>
+          {passageLoadError && (
+            <div className="mb-4 text-xs text-warning">Using default passages: {passageLoadError}</div>
+          )}
           {/* Passage progress - forward only */}
           <div className="flex items-center gap-2 mb-4">
             {[0, 1, 2].map(i => (
