@@ -64,3 +64,29 @@ export function scoreAnswers(
   }
   return correct;
 }
+
+/**
+ * Score answers using advanced validation engine (supports fuzzy matching, numeric/date equivalence)
+ * Used for AI-generated content with sophisticated answer patterns
+ */
+export function scoreAnswersWithValidation(
+  userAnswers: Record<number, string>,
+  questions: Array<{ id: number; type: string }>,
+  answerKey: Record<number, string>
+): number {
+  const { validateAnswer } = require('./listening-validation-engine');
+  
+  let correct = 0;
+  for (const question of questions) {
+    const userAnswer = userAnswers[question.id];
+    if (!userAnswer || userAnswer.trim().length === 0) {
+      continue;
+    }
+
+    const result = validateAnswer(userAnswer, question, answerKey);
+    if (result.isCorrect) {
+      correct++;
+    }
+  }
+  return correct;
+}

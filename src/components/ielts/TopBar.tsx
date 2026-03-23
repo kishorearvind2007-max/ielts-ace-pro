@@ -9,9 +9,10 @@ interface TopBarProps {
   totalSeconds: number;
   onTimeUp?: () => void;
   tabSwitchCount?: number;
+  isPaused?: boolean;
 }
 
-export const TopBar = React.memo(function TopBar({ title, totalQuestions, currentQuestion, totalSeconds, onTimeUp, tabSwitchCount = 0 }: TopBarProps) {
+export const TopBar = React.memo(function TopBar({ title, totalQuestions, currentQuestion, totalSeconds, onTimeUp, tabSwitchCount = 0, isPaused = false }: TopBarProps) {
   const { dispatch } = useTest();
   const [timeLeft, setTimeLeft] = useState(totalSeconds);
   const onTimeUpRef = useRef(onTimeUp);
@@ -21,6 +22,8 @@ export const TopBar = React.memo(function TopBar({ title, totalQuestions, curren
   useEffect(() => {
     setTimeLeft(totalSeconds);
     hasSubmittedRef.current = false;
+
+    if (isPaused) return;
 
     const interval = setInterval(() => {
       setTimeLeft(prev => {
@@ -36,7 +39,7 @@ export const TopBar = React.memo(function TopBar({ title, totalQuestions, curren
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [totalSeconds]);
+  }, [totalSeconds, isPaused]);
 
   useEffect(() => {
     dispatch({ type: 'SET_TIMER', seconds: timeLeft });

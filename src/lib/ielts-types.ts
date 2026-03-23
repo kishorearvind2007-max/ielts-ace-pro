@@ -1,6 +1,31 @@
 export type TestModule = 'listening' | 'reading' | 'writing' | 'speaking';
 export type TestPhase = 'home' | 'instructions' | 'test' | 'results';
-export type QuestionType = 'mcq' | 'short-answer' | 'true-false-ng' | 'matching' | 'sentence-completion' | 'note-completion';
+export type QuestionType = 'mcq' | 'short-answer' | 'true-false-ng' | 'matching' | 'sentence-completion' | 'note-completion' | 'form-completion' | 'table-completion';
+
+// CBT Flow phases for Listening module
+export type ListeningCBTPhase =
+  | 'prep-time'        // 30s before section to read questions
+  | 'listening-part1'  // First half of audio (Q1-5)
+  | 'mid-pause'        // Brief pause between parts
+  | 'listening-part2'  // Second half of audio (Q6-10)
+  | 'check-time'       // 30s after section to review answers
+  | 'final-review'     // 2 min final review after Section 4
+  | 'complete';        // Test finished
+
+export interface ListeningCBTState {
+  phase: ListeningCBTPhase;
+  currentSection: number;  // 0-3 for Sections 1-4
+  phaseTimeRemaining: number;  // Countdown in seconds
+  isAudioLocked: boolean;  // No pause/replay during listening
+  canNavigate: boolean;    // Can switch sections (only during final-review)
+  currentPart: 1 | 2;      // Which part of the section audio
+}
+
+export interface SplitScript {
+  part1: string;
+  part2: string;
+  midAnnouncement: string;  // "Now look at questions 6-10"
+}
 
 export interface Question {
   id: number;
@@ -16,6 +41,9 @@ export interface ListeningSection {
   script: string;
   questions: Question[];
   answerKey: Record<number, string>;
+  source?: 'static' | 'ai-generated';
+  generatedAt?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ReadingPassage {

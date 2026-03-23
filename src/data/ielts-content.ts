@@ -348,3 +348,88 @@ export const speakingContent: SpeakingPart[] = [
     ],
   },
 ];
+
+/**
+ * Get listening section by ID - supports both static and dynamically generated content
+ * @param sectionId - Section number (0-3)
+ * @param opts - Optional parameters for dynamic generation
+ */
+export function getListeningSection(
+  sectionId: number,
+  opts?: { useGenerated?: boolean; topic?: string; difficulty?: string }
+): ListeningSection {
+  // Return static content by default
+  if (!opts?.useGenerated && sectionId >= 0 && sectionId < listeningContent.length) {
+    return listeningContent[sectionId];
+  }
+
+  // If no valid section found, throw error
+  if (sectionId < 0 || sectionId >= listeningContent.length) {
+    throw new Error(`Invalid section ID: ${sectionId}. Must be between 0 and ${listeningContent.length - 1}`);
+  }
+
+  return listeningContent[sectionId];
+}
+
+/**
+ * Fetch or generate listening content for a section
+ * For static content: returns immediately
+ * For dynamic content: calls API endpoint
+ */
+export async function fetchListeningContent(
+  sectionNumber: number,
+  useGenerated: boolean = false,
+  topic?: string,
+  difficulty: string = 'medium'
+): Promise<ListeningSection> {
+  // Return static content if not requesting generated content
+  if (!useGenerated || sectionNumber < 1 || sectionNumber > 4) {
+    return getListeningSection(sectionNumber - 1);
+  }
+
+  // Map section number to content type
+  const contentTypeMap = {
+    1: 'conversation' as const,
+    2: 'monologue' as const,
+    3: 'academic' as const,
+    4: 'lecture' as const,
+  };
+
+  const contentType = contentTypeMap[sectionNumber as keyof typeof contentTypeMap];
+
+  try {
+    const response = await fetch(
+      `/api/generate-listening?contentType=${contentType}&difficulty=${difficulty}&sectionNumber=${sectionNumber}${
+        topic ? `&topic=${encodeURIComponent(topic)}` : ''
+      }`
+    );
+
+    if (!response.ok) {
+      console.error('Failed to generate content, falling back to static');
+      return getListeningSection(sectionNumber - 1);
+    }
+
+    const data = await response.json();
+
+    if (data.success && data.data) {
+      // Transform API response to ListeningSection format
+      return {
+        id: sectionNumber,
+        title: `Section ${sectionNumber}: ${contentTypeMap[sectionNumber as keyof typeof contentTypeMap]}`,
+        script: data.data.script,
+        questions: data.data.questions,
+        answerKey: data.data.answerKey,
+        source: 'ai-generated',
+        generatedAt: data.data.metadata?.generatedAt,
+        metadata: data.data.metadata,
+      };
+    }
+
+    // Fallback to static content
+    return getListeningSection(sectionNumber - 1);
+  } catch (error) {
+    console.error('Error fetching generated content:', error);
+    // Fallback to static content
+    return getListeningSection(sectionNumber - 1);
+  }
+}
