@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { useTest } from './TestProvider';
 import { calculateOverallBand, getBandLabel, getCEFR } from '@/lib/scoring';
 import { Button } from '@/components/ui/button';
-import { Award, ChevronDown, ChevronUp, Home, RotateCcw } from 'lucide-react';
+import { Award, ChevronDown, ChevronUp, Home, RotateCcw, CheckCircle2, XCircle, Clock, BarChart3 } from 'lucide-react';
 import { useState } from 'react';
 import type { WritingEvaluationApiResponse } from '@/lib/ielts-types';
 
@@ -362,9 +362,133 @@ export function ResultsScreen() {
                   )}
 
                   {result.examinerComment && (
-                    <div className="p-3 rounded-lg bg-secondary">
+                    <div className="p-3 rounded-lg bg-secondary mb-4">
                       <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Examiner Comment</h4>
                       <p className="text-sm text-foreground">{result.examinerComment}</p>
+                    </div>
+                  )}
+
+                  {/* Detailed Reading Analytics */}
+                  {result.detailedResults && (
+                    <div className="border-t border-border pt-4 mt-4">
+                      <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                        <BarChart3 className="w-4 h-4 text-primary" />
+                        Detailed Performance Analysis
+                      </h4>
+
+                      {/* Summary Stats */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                        <div className="p-3 rounded-lg bg-secondary/50">
+                          <div className="text-xs text-muted-foreground mb-1">Accuracy</div>
+                          <div className="text-lg font-bold text-foreground">
+                            {((result.detailedResults.evaluations.filter(e => e.isCorrect).length / result.detailedResults.evaluations.length) * 100).toFixed(1)}%
+                          </div>
+                        </div>
+                        <div className="p-3 rounded-lg bg-secondary/50">
+                          <div className="text-xs text-muted-foreground mb-1">Avg Time</div>
+                          <div className="text-lg font-bold text-foreground">
+                            {result.detailedResults.timeStats.avgTimePerQuestion.toFixed(0)}s
+                          </div>
+                        </div>
+                        <div className="p-3 rounded-lg bg-secondary/50">
+                          <div className="text-xs text-muted-foreground mb-1">Fastest Q</div>
+                          <div className="text-lg font-bold text-foreground">
+                            {result.detailedResults.timeStats.fastestQuestion
+                              ? `Q${result.detailedResults.timeStats.fastestQuestion.id} (${result.detailedResults.timeStats.fastestQuestion.time.toFixed(0)}s)`
+                              : 'N/A'}
+                          </div>
+                        </div>
+                        <div className="p-3 rounded-lg bg-secondary/50">
+                          <div className="text-xs text-muted-foreground mb-1">Slowest Q</div>
+                          <div className="text-lg font-bold text-foreground">
+                            {result.detailedResults.timeStats.slowestQuestion
+                              ? `Q${result.detailedResults.timeStats.slowestQuestion.id} (${result.detailedResults.timeStats.slowestQuestion.time.toFixed(0)}s)`
+                              : 'N/A'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Question Types Performance */}
+                      {Object.keys(result.detailedResults.questionTypes).length > 0 && (
+                        <div className="mb-4">
+                          <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Performance by Question Type</h5>
+                          <div className="space-y-2">
+                            {Object.entries(result.detailedResults.questionTypes)
+                              .sort(([, a], [, b]) => (b.correct / b.total) - (a.correct / a.total))
+                              .map(([type, stats]) => {
+                                const accuracy = (stats.correct / stats.total) * 100;
+                                return (
+                                  <div key={type} className="flex items-center gap-3">
+                                    <div className="w-32 text-xs text-foreground capitalize">{type}</div>
+                                    <div className="flex-1 h-4 bg-secondary rounded-full overflow-hidden relative">
+                                      <div
+                                        className={`h-full rounded-full transition-all ${accuracy >= 70 ? 'bg-success' : accuracy >= 50 ? 'bg-warning' : 'bg-destructive'}`}
+                                        style={{ width: `${accuracy}%` }}
+                                      />
+                                    </div>
+                                    <div className="w-12 text-xs text-right font-semibold text-foreground">
+                                      {stats.correct}/{stats.total}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Question Breakdown */}
+                      <details className="mb-4">
+                        <summary className="cursor-pointer text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 hover:text-foreground">
+                          Show Question-by-Question Breakdown ({result.detailedResults.evaluations.length} questions)
+                        </summary>
+                        <div className="space-y-2 max-h-96 overflow-y-auto p-2">
+                          {result.detailedResults.evaluations.map((evaluation) => (
+                            <div
+                              key={evaluation.questionId}
+                              className={`p-3 rounded-lg border ${evaluation.isCorrect ? 'bg-success/10 border-success/30' : 'bg-destructive/10 border-destructive/30'}`}
+                            >
+                              <div className="flex items-start justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  {evaluation.isCorrect ? (
+                                    <CheckCircle2 className="w-4 h-4 text-success flex-shrink-0" />
+                                  ) : (
+                                    <XCircle className="w-4 h-4 text-destructive flex-shrink-0" />
+                                  )}
+                                  <span className="text-sm font-semibold text-foreground">Q{evaluation.questionId}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-xs font-medium px-2 py-0.5 rounded ${evaluation.isCorrect ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive'}`}>
+                                    {evaluation.matchMethod}
+                                  </span>
+                                  {evaluation.timeSpent && (
+                                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                      <Clock className="w-3 h-3" />
+                                      {evaluation.timeSpent.toFixed(1)}s
+                                    </span>
+                                  )}
+                                  {evaluation.similarityScore && (
+                                    <span className="text-xs text-muted-foreground">
+                                      {Math.round(evaluation.similarityScore * 100)}%
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="space-y-1 text-xs">
+                                {!evaluation.isCorrect && (
+                                  <div>
+                                    <span className="text-muted-foreground">Your answer: </span>
+                                    <span className="text-foreground font-mono">"{evaluation.userAnswer}"</span>
+                                  </div>
+                                )}
+                                <div>
+                                  <span className="text-muted-foreground">Correct: </span>
+                                  <span className="text-foreground font-mono">"{evaluation.correctAnswer}"</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
                     </div>
                   )}
                 </div>
