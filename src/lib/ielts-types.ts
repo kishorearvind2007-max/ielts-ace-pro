@@ -1,6 +1,7 @@
 export type TestModule = 'listening' | 'reading' | 'writing' | 'speaking';
 export type TestPhase = 'home' | 'instructions' | 'test' | 'results';
 export type QuestionType = 'mcq' | 'short-answer' | 'true-false-ng' | 'matching' | 'sentence-completion' | 'note-completion';
+export type ContentSource = 'nvidia' | 'fallback';
 
 export interface Question {
   id: number;
@@ -10,12 +11,20 @@ export interface Question {
   section?: number;
 }
 
+export interface ListeningSectionMetadata {
+  contentType?: 'conversation' | 'monologue' | 'academic' | 'lecture';
+  estimatedDurationSeconds?: number;
+  speakers?: string[];
+}
+
 export interface ListeningSection {
   id: number;
   title: string;
   script: string;
   questions: Question[];
   answerKey: Record<number, string>;
+  source?: ContentSource;
+  metadata?: ListeningSectionMetadata;
 }
 
 export interface ReadingPassage {
@@ -116,6 +125,46 @@ export interface WritingTaskEvaluations {
   task2: WritingEvaluationApiResponse;
 }
 
+export type ListeningQuestionStatus = 'correct' | 'incorrect' | 'unanswered';
+
+export interface ListeningQuestionValidation {
+  questionId: number;
+  sectionNumber: number;
+  questionText: string;
+  questionType: QuestionType;
+  userAnswer: string;
+  acceptedAnswers: string[];
+  matchedAnswer?: string;
+  status: ListeningQuestionStatus;
+}
+
+export interface ListeningSectionValidationSummary {
+  sectionNumber: number;
+  title?: string;
+  correct: number;
+  total: number;
+}
+
+export interface ListeningValidationSummary {
+  generatedAt: string;
+  rawScore: number;
+  totalQuestions: number;
+  answeredCount: number;
+  unansweredCount: number;
+  incorrectCount: number;
+  sectionBreakdown: ListeningSectionValidationSummary[];
+  questionResults: ListeningQuestionValidation[];
+}
+
+export interface ListeningResultSnapshot {
+  band: number;
+  rawScore: number;
+  totalQuestions: number;
+  sectionTitles: Record<number, string>;
+  listeningValidation: ListeningValidationSummary;
+  submittedAt: string;
+}
+
 export interface ModuleResult {
   module: TestModule;
   band: number;
@@ -123,6 +172,7 @@ export interface ModuleResult {
   totalQuestions?: number;
   percentage?: number;
   answers?: Record<number, string>;
+  listeningValidation?: ListeningValidationSummary;
   criteriaScores?: Record<string, { band: number; feedback: string; examples: string[] }>;
   strengths?: string[];
   improvements?: string[];
@@ -171,6 +221,7 @@ export type TestAction =
   | { type: 'SET_WRITING'; task: 'task1' | 'task2'; text: string }
   | { type: 'SET_SPEAKING_TRANSCRIPT'; part: 'part1' | 'part2' | 'part3'; text: string }
   | { type: 'ADD_RESULT'; result: ModuleResult }
+  | { type: 'LOAD_RESULTS'; results: ModuleResult[] }
   | { type: 'SET_TIMER'; seconds: number }
   | { type: 'SET_TIMER_RUNNING'; running: boolean }
   | { type: 'SET_API_KEY'; key: string }
