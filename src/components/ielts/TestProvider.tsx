@@ -1,4 +1,7 @@
+"use client";
+
 import React, { createContext, useContext, useReducer, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { TestState, TestAction, TestModule, ModuleResult } from '@/lib/ielts-types';
 
 const initialState: TestState = {
@@ -57,28 +60,33 @@ interface TestContextType {
 const TestContext = createContext<TestContextType | null>(null);
 
 export function TestProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [state, dispatch] = useReducer(testReducer, initialState);
 
   const startModule = useCallback((module: TestModule) => {
     dispatch({ type: 'SET_MODULE', module });
     dispatch({ type: 'SET_PHASE', phase: 'test' });
-  }, []);
+    router.push(`/${module}`);
+  }, [router]);
 
   const submitModule = useCallback((result: ModuleResult) => {
     dispatch({ type: 'ADD_RESULT', result });
     dispatch({ type: 'SET_PHASE', phase: 'home' });
     dispatch({ type: 'SET_MODULE', module: null });
     dispatch({ type: 'SET_TIMER_RUNNING', running: false });
-  }, []);
+    router.push('/');
+  }, [router]);
 
   const goHome = useCallback(() => {
     dispatch({ type: 'SET_PHASE', phase: 'home' });
     dispatch({ type: 'SET_MODULE', module: null });
-  }, []);
+    router.push('/');
+  }, [router]);
 
   const showResults = useCallback(() => {
     dispatch({ type: 'SET_PHASE', phase: 'results' });
-  }, []);
+    router.push('/results');
+  }, [router]);
 
   return (
     <TestContext.Provider value={{ state, dispatch, startModule, submitModule, goHome, showResults }}>

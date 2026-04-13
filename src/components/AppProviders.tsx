@@ -5,6 +5,7 @@ import { ThemeProvider } from "next-themes";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { TestProvider } from "@/components/ielts/TestProvider";
 
 const queryClient = new QueryClient();
 
@@ -12,11 +13,13 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     return (
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
             <QueryClientProvider client={queryClient}>
-                <TooltipProvider>
-                    {children}
-                    <Toaster />
-                    <Sonner />
-                </TooltipProvider>
+                <TestProvider>
+                    <TooltipProvider>
+                        {children}
+                        <Toaster />
+                        <Sonner />
+                    </TooltipProvider>
+                </TestProvider>
             </QueryClientProvider>
         </ThemeProvider>
     );
