@@ -486,7 +486,19 @@ export default function WritingResultPage() {
                     </Button>
                     <Button
                         onClick={() => {
+                            // Clear the standalone writing result
                             localStorage.removeItem("writingResult");
+                            // Also clear the writing result from the persisted test results
+                            try {
+                                const stored = localStorage.getItem("ielts-test-results");
+                                if (stored) {
+                                    const results = JSON.parse(stored);
+                                    const filtered = results.filter((r: { module: string }) => r.module !== "writing");
+                                    localStorage.setItem("ielts-test-results", JSON.stringify(filtered));
+                                }
+                            } catch {
+                                // Ignore errors
+                            }
                             router.push("/");
                         }}
                         className="flex-1"

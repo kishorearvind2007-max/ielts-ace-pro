@@ -36,7 +36,17 @@ function testReducer(state: TestState, action: TestAction): TestState {
       ...state,
       speakingTranscripts: { ...state.speakingTranscripts, [action.part]: action.text },
     };
-    case 'ADD_RESULT': return { ...state, results: [...state.results, action.result] };
+    case 'ADD_RESULT': {
+      // Prevent duplicate results for the same module
+      const existingIndex = state.results.findIndex(r => r.module === action.result.module);
+      if (existingIndex >= 0) {
+        const newResults = [...state.results];
+        newResults[existingIndex] = action.result;
+        return { ...state, results: newResults };
+      }
+      return { ...state, results: [...state.results, action.result] };
+    }
+    case 'LOAD_RESULTS': return { ...state, results: action.results };
     case 'SET_TIMER': return { ...state, timerSeconds: action.seconds };
     case 'SET_TIMER_RUNNING': return { ...state, isTimerRunning: action.running };
     case 'SET_API_KEY': return { ...state, apiKey: action.key };
@@ -52,6 +62,7 @@ interface TestContextType {
   submitModule: (result: ModuleResult) => void;
   goHome: () => void;
   showResults: () => void;
+  resetAll: () => void;
 }
 
 const TestContext = createContext<TestContextType | null>(null);
@@ -80,8 +91,12 @@ export function TestProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_PHASE', phase: 'results' });
   }, []);
 
+  const resetAll = useCallback(() => {
+    dispatch({ type: 'RESET' });
+  }, []);
+
   return (
-    <TestContext.Provider value={{ state, dispatch, startModule, submitModule, goHome, showResults }}>
+    <TestContext.Provider value={{ state, dispatch, startModule, submitModule, goHome, showResults, resetAll }}>
       {children}
     </TestContext.Provider>
   );

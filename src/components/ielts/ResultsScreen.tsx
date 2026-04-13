@@ -1,10 +1,11 @@
 import { motion } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 import { useTest } from './TestProvider';
 import { calculateOverallBand, getBandLabel, getCEFR } from '@/lib/scoring';
 import { Button } from '@/components/ui/button';
 import { Award, ChevronDown, ChevronUp, Home, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
-import type { WritingEvaluationApiResponse } from '@/lib/ielts-types';
+import type { ModuleResult, WritingEvaluationApiResponse } from '@/lib/ielts-types';
 
 function renderList(items: string[], keyPrefix: string) {
   if (items.length === 0) {
@@ -200,7 +201,57 @@ function renderWritingTaskDetails(title: string, evaluation: WritingEvaluationAp
   );
 }
 
+function renderListeningValidationSummary(result: ModuleResult, onOpenReport: () => void) {
+  if (result.module !== 'listening') {
+    return null;
+  }
+
+  const validation = result.listeningValidation;
+  if (!validation) {
+    return (
+      <div className="mb-4 rounded-lg border border-border bg-secondary/30 p-3">
+        <p className="text-xs text-muted-foreground">Detailed listening validation is unavailable for this attempt.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-4 space-y-3 rounded-lg border border-border bg-secondary/30 p-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div className="rounded-md border border-border bg-card p-2">
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Answered</p>
+          <p className="text-sm font-semibold text-foreground">{validation.answeredCount}/{validation.totalQuestions}</p>
+        </div>
+        <div className="rounded-md border border-border bg-card p-2">
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Unanswered</p>
+          <p className="text-sm font-semibold text-warning">{validation.unansweredCount}</p>
+        </div>
+        <div className="rounded-md border border-border bg-card p-2">
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Incorrect</p>
+          <p className="text-sm font-semibold text-destructive">{validation.incorrectCount}</p>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        {validation.sectionBreakdown.map(section => (
+          <div key={section.sectionNumber} className="flex items-center justify-between text-xs text-foreground rounded-md bg-card border border-border px-2.5 py-2">
+            <span>Section {section.sectionNumber}</span>
+            <span className="font-semibold text-primary">{section.correct}/{section.total}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex justify-end">
+        <Button size="sm" variant="secondary" onClick={onOpenReport}>
+          View Detailed Listening Report
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function ResultsScreen() {
+  const router = useRouter();
   const { state, dispatch, goHome } = useTest();
   const [expandedModule, setExpandedModule] = useState<string | null>(null);
 
@@ -315,6 +366,8 @@ export function ResultsScreen() {
 
               {expandedModule === result.module && (
                 <div className="px-5 pb-5 border-t border-border pt-4">
+                  {renderListeningValidationSummary(result, () => router.push('/result/listening'))}
+
                   {result.module === 'writing' && result.writingEvaluations && (
                     <div className="space-y-4 mb-4">
                       {renderWritingTaskDetails('Task 1 (Academic - describe a graph)', result.writingEvaluations.task1)}

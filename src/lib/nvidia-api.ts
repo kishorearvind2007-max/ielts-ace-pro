@@ -1,4 +1,4 @@
-import { ReadingPassage, WritingTask } from '@/lib/ielts-types';
+import { ListeningSection, ReadingPassage, WritingTask } from '@/lib/ielts-types';
 
 type NvidiaChatResponseEnvelope = {
   choices?: Array<{ message?: { content?: string } }>;
@@ -30,9 +30,65 @@ type NvidiaReadingResponse = {
   }>;
 };
 
+type NvidiaListeningSection = {
+  id: number;
+  title: string;
+  script: string;
+  questions: Array<{
+    id: number;
+    type: 'mcq' | 'short-answer' | 'true-false-ng';
+    text: string;
+    options?: string[];
+  }>;
+  answerKey: Record<string, string>;
+  metadata?: {
+    contentType?: 'conversation' | 'monologue' | 'academic' | 'lecture';
+    estimatedDurationSeconds?: number;
+    speakers?: string[];
+  };
+};
+
+type NvidiaListeningResponse = {
+  section?: NvidiaListeningSection;
+} & Partial<NvidiaListeningSection>;
+
 const NVIDIA_API_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
 const NVIDIA_MODEL = process.env.NVIDIA_MODEL ?? 'minimaxai/minimax-m2.1';
 const NVIDIA_READING_MODEL = process.env.NVIDIA_READING_MODEL ?? 'moonshotai/kimi-k2-instruct-0905';
+const NVIDIA_LISTENING_MODEL = process.env.NVIDIA_LISTENING_MODEL ?? NVIDIA_READING_MODEL;
+const NVIDIA_FALLBACK_MODEL = process.env.NVIDIA_FALLBACK_MODEL ?? 'microsoft/phi-4-mini-flash-reasoning';
+
+const LISTENING_SECTION_CONFIG: Record<number, {
+  contentType: 'conversation' | 'monologue' | 'academic' | 'lecture';
+  titleHint: string;
+  questionStart: number;
+  questionEnd: number;
+}> = {
+  1: {
+    contentType: 'conversation',
+    titleHint: 'Everyday social conversation',
+    questionStart: 1,
+    questionEnd: 10,
+  },
+  2: {
+    contentType: 'monologue',
+    titleHint: 'Public information monologue',
+    questionStart: 11,
+    questionEnd: 20,
+  },
+  3: {
+    contentType: 'academic',
+    titleHint: 'Academic discussion',
+    questionStart: 21,
+    questionEnd: 30,
+  },
+  4: {
+    contentType: 'lecture',
+    titleHint: 'Academic lecture',
+    questionStart: 31,
+    questionEnd: 40,
+  },
+};
 function buildPrompt(difficulty: string) {
   return `Generate IELTS Academic Writing questions in JSON only.
 
@@ -114,6 +170,74 @@ Strict constraints:
 - Difficulty level: ${difficulty}.
 
 Return JSON only. No markdown, no extra text.`;
+}
+
+function getListeningSectionConfig(sectionNumber: number) {
+  const config = LISTENING_SECTION_CONFIG[sectionNumber];
+  if (!config) {
+    throw new Error('Listening sectionNumber must be between 1 and 4');
+  }
+  return config;
+}
+
+function buildListeningPrompt(sectionNumber: number, difficulty: string) {
+  const config = getListeningSectionConfig(sectionNumber);
+
+  return `Generate IELTS Academic Listening content in JSON only.
+
+Return JSON with this exact shape:
+{
+  "section": {
+    "id": ${sectionNumber},
+    "title": "...",
+    "script": "...",
+    "questions": [
+      {
+        "id": ${config.questionStart},
+        "type": "mcq" | "short-answer" | "true-false-ng",
+        "text": "...",
+        "options": ["..."]
+      }
+    ],
+    "answerKey": {
+      "${config.questionStart}": "..."
+    },
+    "metadata": {
+      "contentType": "${config.contentType}",
+      "estimatedDurationSeconds": 240,
+      "speakers": ["..."]
+    }
+  }
+}
+
+Strict constraints:
+- Generate exactly one section for section ${sectionNumber}.
+- Section style: ${config.contentType} (${config.titleHint}).
+- Script must be realistic IELTS Listening style and around 180 to 260 words.
+- Generate exactly 10 questions with ids ${config.questionStart} to ${config.questionEnd}.
+- Use only these types: mcq, short-answer, true-false-ng.
+- Include a mix of question types.
+- For mcq, provide exactly 4 options.
+- For true-false-ng, options must be exactly ["True", "False", "Not Given"].
+- answerKey must contain all question ids from ${config.questionStart} to ${config.questionEnd}.
+- Answers must be concise and must match the script.
+- Difficulty level: ${difficulty}.
+
+Return JSON only. No markdown, no extra text.`;
+}
+
+function buildModelChain(models: string[]): string[] {
+  const seen = new Set<string>();
+  const output: string[] = [];
+  models.forEach(model => {
+    const cleaned = model.trim();
+    if (!cleaned || seen.has(cleaned)) {
+      return;
+    }
+    seen.add(cleaned);
+    output.push(cleaned);
+  });
+  return output;
 }
 
 function readNonStreamingContent(payload: NvidiaChatResponseEnvelope): string {
@@ -209,6 +333,22 @@ async function callNvidia(content: string, model: string) {
   return text;
 }
 
+async function callNvidiaWithFallback(content: string, models: string[]): Promise<{ content: string; model: string }> {
+  const modelChain = buildModelChain(models);
+  let lastError = 'Nvidia call failed';
+
+  for (const model of modelChain) {
+    try {
+      const generated = await callNvidia(content, model);
+      return { content: generated, model };
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : 'Nvidia call failed';
+    }
+  }
+
+  throw new Error(lastError);
+}
+
 function normalizeQuestionType(type: string): 'mcq' | 'short-answer' | 'true-false-ng' {
   if (type === 'mcq' || type === 'short-answer' || type === 'true-false-ng') {
     return type;
@@ -290,6 +430,90 @@ function validateGeneratedReading(passages: ReadingPassage[]): ReadingPassage[] 
   return passages;
 }
 
+function normalizeListeningSection(rawSection: NvidiaListeningSection, sectionNumber: number): ListeningSection {
+  const config = getListeningSectionConfig(sectionNumber);
+  const sectionQuestions = Array.isArray(rawSection?.questions)
+    ? rawSection.questions.map((q, questionIndex) => {
+      const questionType = normalizeQuestionType(String(q?.type ?? 'short-answer'));
+      const options = questionType === 'mcq'
+        ? (Array.isArray(q?.options) ? q.options.slice(0, 4).map(opt => String(opt)) : []).filter(Boolean)
+        : questionType === 'true-false-ng'
+          ? ['True', 'False', 'Not Given']
+          : undefined;
+
+      return {
+        id: Number(q?.id) || config.questionStart + questionIndex,
+        type: questionType,
+        text: String(q?.text ?? '').trim(),
+        options,
+        section: sectionNumber,
+      };
+    }).filter(q => q.text)
+    : [];
+
+  const answerKeyEntries = Object.entries(rawSection?.answerKey ?? {})
+    .map(([key, value]) => [Number(key), String(value).trim()] as const)
+    .filter(([key, value]) => Number.isFinite(key) && value.length > 0);
+
+  const metadata = rawSection?.metadata ?? {};
+
+  return {
+    id: sectionNumber,
+    title: String(rawSection?.title ?? '').trim() || `Section ${sectionNumber}`,
+    script: String(rawSection?.script ?? '').trim(),
+    questions: sectionQuestions,
+    answerKey: Object.fromEntries(answerKeyEntries),
+    source: 'nvidia',
+    metadata: {
+      contentType: config.contentType,
+      estimatedDurationSeconds: Number(metadata.estimatedDurationSeconds) || undefined,
+      speakers: Array.isArray(metadata.speakers)
+        ? metadata.speakers.map(name => String(name).trim()).filter(Boolean)
+        : undefined,
+    },
+  };
+}
+
+function validateGeneratedListening(section: ListeningSection, sectionNumber: number): ListeningSection {
+  const config = getListeningSectionConfig(sectionNumber);
+
+  if (!section.script || section.script.length < 120) {
+    throw new Error('Generated listening script is too short');
+  }
+
+  const questionIds = section.questions.map(question => question.id).sort((a, b) => a - b);
+  if (questionIds.length !== 10) {
+    throw new Error('Generated listening section must contain exactly 10 questions');
+  }
+
+  const expectedIds = Array.from({ length: 10 }, (_, index) => config.questionStart + index);
+  const isValidDistribution = questionIds.every((id, index) => id === expectedIds[index]);
+  if (!isValidDistribution) {
+    throw new Error('Generated listening question ids are invalid');
+  }
+
+  section.questions.forEach(question => {
+    if (question.type === 'mcq' && (question.options?.length ?? 0) !== 4) {
+      throw new Error('Generated listening mcq questions must contain exactly 4 options');
+    }
+    if (question.type === 'true-false-ng') {
+      const expected = ['True', 'False', 'Not Given'];
+      const current = question.options ?? [];
+      const isValid = current.length === expected.length && current.every((option, index) => option === expected[index]);
+      if (!isValid) {
+        throw new Error('Generated listening true-false-ng options are invalid');
+      }
+    }
+  });
+
+  const missingAnswers = expectedIds.filter(id => !section.answerKey[id]);
+  if (missingAnswers.length > 0) {
+    throw new Error('Generated listening answer key is incomplete');
+  }
+
+  return section;
+}
+
 export async function generateWritingQuestions(difficulty = 'Band 6'): Promise<{ task1: WritingTask; task2: WritingTask }> {
   const content = await callNvidia(buildPrompt(difficulty), NVIDIA_MODEL);
   if (!content) {
@@ -333,4 +557,31 @@ export async function generateReadingPassages(difficulty = 'Band 6'): Promise<{ 
 
   const passages = validateGeneratedReading(normalized);
   return { passages };
+}
+
+export async function generateListeningSection(
+  sectionNumber: number,
+  difficulty = 'Band 6',
+): Promise<{ section: ListeningSection; modelUsed: string }> {
+  getListeningSectionConfig(sectionNumber);
+  const prompt = buildListeningPrompt(sectionNumber, difficulty);
+
+  const { content, model } = await callNvidiaWithFallback(prompt, [
+    NVIDIA_LISTENING_MODEL,
+    NVIDIA_FALLBACK_MODEL,
+  ]);
+
+  let parsed: NvidiaListeningResponse;
+  try {
+    const json = extractFirstJsonObject(content);
+    parsed = JSON.parse(json) as NvidiaListeningResponse;
+  } catch {
+    throw new Error('Failed to parse Nvidia listening response as JSON');
+  }
+
+  const rawSection = (parsed.section ?? parsed) as NvidiaListeningSection;
+  const normalized = normalizeListeningSection(rawSection, sectionNumber);
+  const section = validateGeneratedListening(normalized, sectionNumber);
+
+  return { section, modelUsed: model };
 }
