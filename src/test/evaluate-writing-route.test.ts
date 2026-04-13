@@ -10,6 +10,8 @@ describe('evaluate-writing route', () => {
       NVIDIA_API_KEY: 'test-key',
       NVIDIA_MODEL: 'stepfun-ai/step-3.5-flash',
       NVIDIA_FALLBACK_MODEL: 'microsoft/phi-4-mini-flash-reasoning',
+      NVIDIA_WRITING_GEMMA_ENABLED: 'false',
+      NVIDIA_WRITING_GEMMA_MODEL: 'google/gemma-4-31b-it',
     };
     global.fetch = jest.fn() as unknown as typeof fetch;
   });
@@ -152,5 +154,58 @@ describe('evaluate-writing route', () => {
     expect(json.overall_band).toBeGreaterThanOrEqual(0);
     expect(json.overall_band).toBeLessThanOrEqual(9);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses Gemma first when writing Gemma toggle is enabled', async () => {
+    process.env.NVIDIA_WRITING_GEMMA_ENABLED = 'true';
+
+    const fetchMock = global.fetch as jest.Mock;
+    fetchMock.mockResolvedValueOnce(
+      mockFetchSuccess(JSON.stringify(buildAiResponse(7))),
+    );
+
+    const response = await callRoute({
+      taskType: 'Task 2 (Essay)',
+      essay: 'A complete essay for checking Gemma model priority.',
+      wordCount: 280,
+    });
+
+    const json = await response.json();
+    expect(json.evaluation_mode).toBe('ai');
+    expect(json.model_used).toBe('google/gemma-4-31b-it');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const firstCallBody = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(firstCallBody.model).toBe('google/gemma-4-31b-it');
+  });
+
+  it('falls through Gemma to primary and fallback models in order', async () => {
+    process.env.NVIDIA_WRITING_GEMMA_ENABLED = 'true';
+
+    const fetchMock = global.fetch as jest.Mock;
+    fetchMock
+      .mockRejectedValueOnce(new Error('Gemma unavailable'))
+      .mockRejectedValueOnce(new Error('Primary unavailable'))
+      .mockResolvedValueOnce(
+        mockFetchSuccess(JSON.stringify(buildAiResponse(6))),
+      );
+
+    const response = await callRoute({
+      taskType: 'Task 2 (Essay)',
+      essay: 'Essay text to verify fallback order.',
+      wordCount: 260,
+    });
+
+    const json = await response.json();
+    expect(json.evaluation_mode).toBe('ai');
+    expect(json.model_used).toBe('microsoft/phi-4-mini-flash-reasoning');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    const firstCallBody = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    const secondCallBody = JSON.parse(fetchMock.mock.calls[1][1].body as string);
+    const thirdCallBody = JSON.parse(fetchMock.mock.calls[2][1].body as string);
+    expect(firstCallBody.model).toBe('google/gemma-4-31b-it');
+    expect(secondCallBody.model).toBe('stepfun-ai/step-3.5-flash');
+    expect(thirdCallBody.model).toBe('microsoft/phi-4-mini-flash-reasoning');
   });
 });

@@ -7,6 +7,7 @@ function getFallbackWritingQuestions() {
     task1: writingContent.find(task => task.type === 'task1') ?? writingContent[0],
     task2: writingContent.find(task => task.type === 'task2') ?? writingContent[1],
     source: 'fallback',
+    model_used: 'fallback',
   };
 }
 
@@ -16,7 +17,12 @@ export async function POST(req: Request) {
 
   try {
     const questions = await generateWritingQuestions(difficulty);
-    return NextResponse.json({ ...questions, source: 'nvidia' });
+    return NextResponse.json({
+      task1: questions.task1,
+      task2: questions.task2,
+      source: 'nvidia',
+      model_used: questions.modelUsed,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to generate questions';
     const fallback = getFallbackWritingQuestions();
