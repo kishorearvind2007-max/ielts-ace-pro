@@ -170,6 +170,7 @@ export interface ModuleResult {
   band: number;
   rawScore?: number;
   totalQuestions?: number;
+  percentage?: number;
   answers?: Record<number, string>;
   listeningValidation?: ListeningValidationSummary;
   criteriaScores?: Record<string, { band: number; feedback: string; examples: string[] }>;
@@ -177,6 +178,24 @@ export interface ModuleResult {
   improvements?: string[];
   examinerComment?: string;
   writingEvaluations?: WritingTaskEvaluations;
+  // Advanced analytics (currently for reading)
+  detailedResults?: {
+    evaluations: Array<{
+      questionId: number;
+      isCorrect: boolean;
+      matchMethod: string;
+      userAnswer: string;
+      correctAnswer: string;
+      similarityScore?: number;
+      timeSpent?: number;
+    }>;
+    questionTypes: Record<string, { correct: number; total: number }>;
+    timeStats: {
+      avgTimePerQuestion: number;
+      fastestQuestion: { id: number; time: number } | null;
+      slowestQuestion: { id: number; time: number } | null;
+    };
+  };
 }
 
 export interface TestState {
