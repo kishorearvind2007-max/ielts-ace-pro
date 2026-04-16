@@ -57,6 +57,8 @@ const NVIDIA_MODEL = process.env.NVIDIA_MODEL ?? 'mistralai/mistral-small-3.1-24
 const NVIDIA_READING_MODEL = process.env.NVIDIA_READING_MODEL ?? 'moonshotai/kimi-k2-instruct-0905';
 const NVIDIA_LISTENING_MODEL = process.env.NVIDIA_LISTENING_MODEL ?? NVIDIA_READING_MODEL;
 const NVIDIA_FALLBACK_MODEL = process.env.NVIDIA_FALLBACK_MODEL ?? 'microsoft/phi-4-mini-flash-reasoning';
+const NVIDIA_WRITING_GEMMA_ENABLED = process.env.NVIDIA_WRITING_GEMMA_ENABLED === 'true';
+const NVIDIA_WRITING_GEMMA_MODEL = process.env.NVIDIA_WRITING_GEMMA_MODEL ?? 'google/gemma-4-31b-it';
 
 const LISTENING_SECTION_CONFIG: Record<number, {
   contentType: 'conversation' | 'monologue' | 'academic' | 'lecture';
@@ -514,8 +516,14 @@ function validateGeneratedListening(section: ListeningSection, sectionNumber: nu
   return section;
 }
 
-export async function generateWritingQuestions(difficulty = 'Band 6'): Promise<{ task1: WritingTask; task2: WritingTask }> {
-  const content = await callNvidia(buildPrompt(difficulty), NVIDIA_MODEL);
+export async function generateWritingQuestions(
+  difficulty = 'Band 6',
+): Promise<{ task1: WritingTask; task2: WritingTask; modelUsed: string }> {
+  const { content, model } = await callNvidiaWithFallback(buildPrompt(difficulty), [
+    NVIDIA_WRITING_GEMMA_ENABLED ? NVIDIA_WRITING_GEMMA_MODEL : '',
+    NVIDIA_MODEL,
+    NVIDIA_FALLBACK_MODEL,
+  ]);
   if (!content) {
     throw new Error('Empty Nvidia response');
   }
@@ -537,7 +545,7 @@ export async function generateWritingQuestions(difficulty = 'Band 6'): Promise<{
   );
   const task2 = ensureValidTask(parsed.task2?.prompt, 'task2');
 
-  return { task1, task2 };
+  return { task1, task2, modelUsed: model };
 }
 
 export async function generateReadingPassages(difficulty = 'Band 6'): Promise<{ passages: ReadingPassage[] }> {

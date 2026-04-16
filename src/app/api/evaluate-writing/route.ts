@@ -66,6 +66,8 @@ interface NvidiaChatResponseEnvelope {
 const NVIDIA_API_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
 const PRIMARY_EVAL_MODEL = process.env.NVIDIA_MODEL ?? "mistralai/mistral-small-3.1-24b-instruct-2503";
 const FALLBACK_EVAL_MODEL = process.env.NVIDIA_FALLBACK_MODEL ?? "microsoft/phi-4-mini-flash-reasoning";
+const NVIDIA_WRITING_GEMMA_ENABLED = process.env.NVIDIA_WRITING_GEMMA_ENABLED === "true";
+const NVIDIA_WRITING_GEMMA_MODEL = process.env.NVIDIA_WRITING_GEMMA_MODEL ?? "google/gemma-4-31b-it";
 
 const SYSTEM_PROMPT = `SYSTEM PROMPT
 
@@ -244,6 +246,23 @@ function normalizeVocabulary(value: unknown): VocabularyExplanation[] {
             };
         })
         .filter((item): item is VocabularyExplanation => Boolean(item && (item.word || item.meaning || item.usage)));
+}
+
+function buildModelChain(models: string[]): string[] {
+    const seen = new Set<string>();
+    const output: string[] = [];
+
+    models.forEach(model => {
+        const cleaned = model.trim();
+        if (!cleaned || seen.has(cleaned)) {
+            return;
+        }
+
+        seen.add(cleaned);
+        output.push(cleaned);
+    });
+
+    return output;
 }
 
 function normalizeEvaluation(parsed: unknown, taskType: string, essay: string): WritingEvaluation {
@@ -447,7 +466,13 @@ export async function POST(req: Request) {
     }
 
     let lastError = "AI evaluation failed";
-    for (const model of [PRIMARY_EVAL_MODEL, FALLBACK_EVAL_MODEL]) {
+    const modelChain = buildModelChain([
+        NVIDIA_WRITING_GEMMA_ENABLED ? NVIDIA_WRITING_GEMMA_MODEL : "",
+        PRIMARY_EVAL_MODEL,
+        FALLBACK_EVAL_MODEL,
+    ]);
+
+    for (const model of modelChain) {
         try {
             const evaluation = await evaluateWithModel(apiKey, model, taskType, essay, count);
             return NextResponse.json({
