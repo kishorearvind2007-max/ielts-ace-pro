@@ -1,6 +1,9 @@
 import { motion } from 'framer-motion';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { useTest } from './TestProvider';
 import { Headphones, BookOpen, PenTool, Mic, Play, Award } from 'lucide-react';
+import { useAuth } from '@/components/auth/AuthProvider';
 import { Button } from '@/components/ui/button';
 import type { TestModule } from '@/lib/ielts-types';
 
@@ -12,13 +15,40 @@ const modules: { id: TestModule; title: string; icon: React.ReactNode; time: str
 ];
 
 export function HomeScreen() {
-  const { state, startModule, showResults } = useTest();
+  const router = useRouter();
+  const { state, startModule, showResults, resetAll } = useTest();
+  const { user, signOut } = useAuth();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const completedModules = state.results.map(r => r.module);
   const allDone = completedModules.length === 4;
+
+  async function handleLogout() {
+    setIsLoggingOut(true);
+    try {
+      await signOut();
+      resetAll();
+      localStorage.removeItem('writingResult');
+      localStorage.removeItem('listeningResult');
+      localStorage.removeItem('ielts-test-results');
+      router.push('/auth/login');
+      router.refresh();
+    } finally {
+      setIsLoggingOut(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-5xl mx-auto px-6 py-12">
+        <div className="mb-6 flex flex-col gap-3 rounded-xl border border-border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            Signed in as <span className="font-semibold text-foreground">{user?.fullName || 'Student'}</span> ({user?.registerNumber || 'N/A'})
+          </p>
+          <Button variant="secondary" size="sm" onClick={handleLogout} disabled={isLoggingOut}>
+            {isLoggingOut ? 'Signing out...' : 'Sign out'}
+          </Button>
+        </div>
+
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}

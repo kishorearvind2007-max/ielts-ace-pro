@@ -53,7 +53,7 @@ type NvidiaListeningResponse = {
 } & Partial<NvidiaListeningSection>;
 
 const NVIDIA_API_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
-const NVIDIA_MODEL = process.env.NVIDIA_MODEL ?? 'minimaxai/minimax-m2.1';
+const NVIDIA_MODEL = process.env.NVIDIA_MODEL ?? 'mistralai/mistral-small-3.1-24b-instruct-2503';
 const NVIDIA_READING_MODEL = process.env.NVIDIA_READING_MODEL ?? 'moonshotai/kimi-k2-instruct-0905';
 const NVIDIA_LISTENING_MODEL = process.env.NVIDIA_LISTENING_MODEL ?? NVIDIA_READING_MODEL;
 const NVIDIA_FALLBACK_MODEL = process.env.NVIDIA_FALLBACK_MODEL ?? 'microsoft/phi-4-mini-flash-reasoning';

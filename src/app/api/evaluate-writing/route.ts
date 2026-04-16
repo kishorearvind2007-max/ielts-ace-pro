@@ -64,7 +64,7 @@ interface NvidiaChatResponseEnvelope {
 }
 
 const NVIDIA_API_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
-const PRIMARY_EVAL_MODEL = process.env.NVIDIA_MODEL ?? "stepfun-ai/step-3.5-flash";
+const PRIMARY_EVAL_MODEL = process.env.NVIDIA_MODEL ?? "mistralai/mistral-small-3.1-24b-instruct-2503";
 const FALLBACK_EVAL_MODEL = process.env.NVIDIA_FALLBACK_MODEL ?? "microsoft/phi-4-mini-flash-reasoning";
 
 const SYSTEM_PROMPT = `SYSTEM PROMPT

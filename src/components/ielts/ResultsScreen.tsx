@@ -201,7 +201,7 @@ function renderWritingTaskDetails(title: string, evaluation: WritingEvaluationAp
   );
 }
 
-function renderListeningValidationSummary(result: ModuleResult, onOpenReport: () => void) {
+function renderListeningValidationSummary(result: ModuleResult) {
   if (result.module !== 'listening') {
     return null;
   }
@@ -241,13 +241,12 @@ function renderListeningValidationSummary(result: ModuleResult, onOpenReport: ()
         ))}
       </div>
 
-      <div className="flex justify-end">
-        <Button size="sm" variant="secondary" onClick={onOpenReport}>
-          View Detailed Listening Report
-        </Button>
-      </div>
     </div>
   );
+}
+
+function getModuleReportLabel(module: ModuleResult['module']) {
+  return module.charAt(0).toUpperCase() + module.slice(1);
 }
 
 export function ResultsScreen() {
@@ -366,7 +365,7 @@ export function ResultsScreen() {
 
               {expandedModule === result.module && (
                 <div className="px-5 pb-5 border-t border-border pt-4">
-                  {renderListeningValidationSummary(result, () => router.push('/result/listening'))}
+                  {renderListeningValidationSummary(result)}
 
                   {result.module === 'writing' && result.writingEvaluations && (
                     <div className="space-y-4 mb-4">
@@ -544,6 +543,15 @@ export function ResultsScreen() {
                       </details>
                     </div>
                   )}
+
+                  <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4 mt-4">
+                    <Button size="sm" variant="secondary" onClick={() => router.push(`/result/${result.module}`)}>
+                      View Detailed {getModuleReportLabel(result.module)} Report
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => router.push('/result')}>
+                      Open Report Hub
+                    </Button>
+                  </div>
                 </div>
               )}
             </motion.div>

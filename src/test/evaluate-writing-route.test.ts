@@ -8,7 +8,7 @@ describe('evaluate-writing route', () => {
     process.env = {
       ...originalEnv,
       NVIDIA_API_KEY: 'test-key',
-      NVIDIA_MODEL: 'stepfun-ai/step-3.5-flash',
+      NVIDIA_MODEL: 'mistralai/mistral-small-3.1-24b-instruct-2503',
       NVIDIA_FALLBACK_MODEL: 'microsoft/phi-4-mini-flash-reasoning',
     };
     global.fetch = jest.fn() as unknown as typeof fetch;
@@ -100,11 +100,11 @@ describe('evaluate-writing route', () => {
 
     const json = await response.json();
     expect(json.evaluation_mode).toBe('ai');
-    expect(json.model_used).toBe('stepfun-ai/step-3.5-flash');
+    expect(json.model_used).toBe('mistralai/mistral-small-3.1-24b-instruct-2503');
     expect(json.word_count).toBe(260);
 
     const firstCallBody = JSON.parse(fetchMock.mock.calls[0][1].body as string);
-    expect(firstCallBody.model).toBe('stepfun-ai/step-3.5-flash');
+    expect(firstCallBody.model).toBe('mistralai/mistral-small-3.1-24b-instruct-2503');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -129,7 +129,7 @@ describe('evaluate-writing route', () => {
 
     const firstCallBody = JSON.parse(fetchMock.mock.calls[0][1].body as string);
     const secondCallBody = JSON.parse(fetchMock.mock.calls[1][1].body as string);
-    expect(firstCallBody.model).toBe('stepfun-ai/step-3.5-flash');
+    expect(firstCallBody.model).toBe('mistralai/mistral-small-3.1-24b-instruct-2503');
     expect(secondCallBody.model).toBe('microsoft/phi-4-mini-flash-reasoning');
   });
 

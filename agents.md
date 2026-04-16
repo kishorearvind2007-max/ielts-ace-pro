@@ -7,8 +7,8 @@ This document describes all AI agent integrations and their roles in the IELTS A
 
 IELTS Ace Pro uses multiple AI service providers to deliver dynamic content generation and automated evaluation:
 
-- **NVIDIA AI** - Question generation for Writing and Reading modules
-- **Anthropic Claude** - Response evaluation for Writing and Speaking modules
+- **NVIDIA AI** - Question generation for Writing, Reading, and Listening modules, plus Writing evaluation
+- **Anthropic Claude** - Response evaluation for Speaking module
 
 Both integrations run through secure server-side API routes to protect API keys and enable proper validation.
 
@@ -18,14 +18,15 @@ Both integrations run through secure server-side API routes to protect API keys 
 
 **Location:** `src/lib/nvidia-api.ts`
 
-**Purpose:** Generates IELTS Academic Writing tasks and Reading passages on demand.
+**Purpose:** Generates IELTS Academic Writing, Reading, and Listening content on demand.
 
 ### Configuration
 
 ```typescript
 NVIDIA_API_URL = 'https://integrate.api.nvidia.com/v1/chat/completions'
-NVIDIA_MODEL = process.env.NVIDIA_MODEL ?? 'minimaxai/minimax-m2.1'
-NVIDIA_READING_MODEL = process.env.NVIDIA_READING_MODEL ?? 'z-ai/glm4.7'
+NVIDIA_MODEL = process.env.NVIDIA_MODEL ?? 'mistralai/mistral-small-3.1-24b-instruct-2503'
+NVIDIA_READING_MODEL = process.env.NVIDIA_READING_MODEL ?? 'moonshotai/kimi-k2-instruct-0905'
+NVIDIA_FALLBACK_MODEL = process.env.NVIDIA_FALLBACK_MODEL ?? 'microsoft/phi-4-mini-flash-reasoning'
 ```
 
 Required environment variable: `NVIDIA_API_KEY`
@@ -86,26 +87,27 @@ Generates complete IELTS Academic Reading test with 3 passages and 40 questions.
 
 ---
 
-## 2. Anthropic Claude API Agent
+## 2. Evaluation Agents
 
-**Purpose:** Evaluates user responses for Writing and Speaking modules using official IELTS band descriptors.
-
-**Configuration:**
-- API endpoint: `https://api.anthropic.com/v1/messages`
-- Model: `claude-haiku-4-5-20251001` (configurable via `ANTHROPIC_MODEL`)
-- Required env var: `ANTHROPIC_API_KEY`
-
-### 2.1 Writing Evaluation Agent
+### 2.1 Writing Evaluation Agent (NVIDIA)
 
 **Route:** `src/app/api/evaluate-writing/route.ts`
 
 **Endpoint:** `POST /api/evaluate-writing`
 
+**Configuration:**
+- API endpoint: `https://integrate.api.nvidia.com/v1/chat/completions`
+- Primary model: `mistralai/mistral-small-3.1-24b-instruct-2503` (configurable via `NVIDIA_MODEL`)
+- Fallback model: `microsoft/phi-4-mini-flash-reasoning` (configurable via `NVIDIA_FALLBACK_MODEL`)
+- Required env var: `NVIDIA_API_KEY`
+
 **Request Body:**
 ```typescript
 {
-  "taskText": string,    // User's written response
-  "taskType": string     // "Task 1" or "Task 2"
+  "essay": string,
+  "taskType": string,
+  "wordCount"?: number,
+  "taskText"?: string // backward-compatible alias for essay
 }
 ```
 
@@ -121,30 +123,56 @@ The agent evaluates across four official IELTS Writing dimensions:
 **Response Format:**
 ```typescript
 {
-  task_achievement: { band: number, feedback: string, examples: string[] },
-  coherence_cohesion: { band: number, feedback: string, examples: string[] },
-  lexical_resource: { band: number, feedback: string, examples: string[] },
-  grammatical_range: { band: number, feedback: string, examples: string[] },
+  overview: {
+    overview: string,
+    strengths: string[],
+    weaknesses: string[]
+  },
+  scoring: {
+    taskResponseHighLevel: string,
+    taskResponseStrengths: string[],
+    taskResponseWeaknesses: string[],
+    coherenceHighLevel: string,
+    coherenceStrengths: string[],
+    coherenceWeaknesses: string[],
+    taskResponseScore: number,
+    coherenceScore: number
+  },
+  languageAnalysis: {
+    correctedEssay: string,
+    keyChanges: string[],
+    lexicalResourceHighLevel: string,
+    lexicalResourceStrengths: string[],
+    lexicalResourceWeaknesses: string[],
+    grammaticalRangeHighLevel: string,
+    grammaticalRangeStrengths: string[],
+    grammaticalRangeWeaknesses: string[],
+    lexicalResourceScore: number,
+    grammaticalRangeScore: number
+  },
+  improvement: {
+    improvedEssay: string,
+    vocabularyExplanations: Array<{ word: string; meaning: string; usage: string }>,
+    expandIdeas: string[],
+    alternativeDirection: string,
+    alternativeEssay: string,
+    alternativeVocabulary: Array<{ word: string; meaning: string; usage: string }>
+  },
   overall_band: number,
   word_count: number,
-  strengths: string[],
-  improvements: string[],
-  examiner_comment: string,
-  evaluation_mode: "ai" | "fallback"
+  evaluation_mode: "ai" | "fallback",
+  model_used: string,
+  warning?: string
 }
 ```
 
 **Fallback Mode:**
 
-If `ANTHROPIC_API_KEY` is missing or the API fails, the system uses a heuristic fallback:
+- If `NVIDIA_API_KEY` is missing, route returns a word-count fallback evaluation
+- If the primary model fails, route retries with fallback model
+- If both models fail, route returns the same word-count fallback (HTTP 200)
 
-- Estimates band based on word count
-  - Task 1: 150+ = 6.0, 230+ = 7.0, <105 = 4.0
-  - Task 2: 250+ = 6.0, 330+ = 7.0, <175 = 4.0
-- Provides generic feedback encouraging development
-- Safe for demo/development without API key
-
-### 2.2 Speaking Evaluation Agent
+### 2.2 Speaking Evaluation Agent (Anthropic Claude)
 
 **Route:** `src/app/api/evaluate-speaking/route.ts`
 
@@ -189,17 +217,14 @@ Assesses across four IELTS Speaking dimensions:
 ### Writing Prompt
 
 ```
-You are a certified IELTS examiner with 10+ years of experience.
-Evaluate the following [Task Type] response strictly according to official IELTS Writing Band Descriptors.
-
-Return JSON with exact schema including:
-- Four criterion bands (0.0-9.0 in 0.5 increments)
-- Overall band
-- Word count
-- Specific feedback with examples from the text
-- Identified strengths
-- Targeted improvement suggestions
-- Examiner-style summary comment
+You are an IELTS Writing evaluation engine.
+Return ONLY valid JSON with the schema used by /api/evaluate-writing:
+- overview
+- scoring
+- languageAnalysis
+- improvement
+- overall_band, word_count, evaluation_mode, model_used
+- Integer criterion scores from 0 to 9
 ```
 
 ### Speaking Prompt
@@ -227,7 +252,7 @@ Return JSON with:
 
 ### Error Handling
 
-- **Writing Fallback:** Provides reasonable heuristic scoring if Claude API unavailable
+- **Writing Fallback:** Uses NVIDIA primary + fallback models, then word-count heuristic if needed
 - **Speaking No Fallback:** Returns error (transcript-only evaluation needs AI)
 - **Input Validation:** Enforces schema validation on all requests
 - **Response Parsing:** Extracts JSON from markdown code blocks if needed
@@ -275,7 +300,7 @@ Currently no explicit rate limiting. Consider adding:
 ### Enhancements
 
 - Streaming responses for faster perceived performance
-- Multi-model fallback chains (Claude → GPT → fallback)
+- Multi-model fallback chains (NVIDIA primary → NVIDIA fallback → heuristic)
 - Response caching for similar prompts
 - Async evaluation with notifications (avoid blocking)
 - A/B testing different prompt engineering
@@ -286,7 +311,7 @@ Currently no explicit rate limiting. Consider adding:
 
 | Agent | Route | Library | Tests |
 |-------|-------|---------|-------|
-| Writing Evaluator | `/api/evaluate-writing` | Anthropic Claude | - |
+| Writing Evaluator | `/api/evaluate-writing` | NVIDIA | `src/test/evaluate-writing-route.test.ts` |
 | Speaking Evaluator | `/api/evaluate-speaking` | Anthropic Claude | - |
 | Writing Generator | `/api/generate-writing-questions` | NVIDIA | - |
 | Reading Generator | `/api/generate-reading-questions` | NVIDIA | - |
@@ -295,4 +320,4 @@ Currently no explicit rate limiting. Consider adding:
 
 ---
 
-**Last Updated:** 2025-03-23
+**Last Updated:** 2026-04-13

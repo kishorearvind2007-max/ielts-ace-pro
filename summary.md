@@ -33,8 +33,8 @@ An AI-powered IELTS Academic test preparation platform built with Next.js 15 and
 
 | Service | Use Case | Model |
 |---------|----------|-------|
-| **NVIDIA** | Question generation | minimax-m2.1, glm4.7 |
-| **Anthropic** | Response evaluation | Claude Haiku 4.5 |
+| **NVIDIA** | Writing/Reading/Listening generation + Writing evaluation | mistralai/mistral-small-3.1-24b-instruct-2503, moonshotai/kimi-k2-instruct-0905, microsoft/phi-4-mini-flash-reasoning (fallback) |
+| **Anthropic** | Speaking evaluation | Claude Haiku 4.5 |
 
 ---
 
@@ -46,7 +46,7 @@ ielts-ace-pro/
 │   ├── app/
 │   │   ├── api/                    # Serverless API routes
 │   │   │   ├── evaluate-speaking/  # Claude-powered speaking eval
-│   │   │   ├── evaluate-writing/   # Claude-powered writing eval
+│   │   │   ├── evaluate-writing/   # NVIDIA-powered writing eval
 │   │   │   ├── generate-reading-questions/  # NVIDIA reading gen
 │   │   │   └── generate-writing-questions/  # NVIDIA writing gen
 │   │   ├── layout.tsx
@@ -102,7 +102,7 @@ Total: ~6500 lines of TypeScript/TSX code
 |--------|--------|-----------|------|---------------|
 | **Listening** | Audio + script | 40 | 40 min | Auto-scored |
 | **Reading** | 3 passages | 40 | 60 min | Auto-scored |
-| **Writing** | 2 tasks | 2 | 60 min | Claude AI + fallback |
+| **Writing** | 2 tasks | 2 | 60 min | NVIDIA AI + fallback |
 | **Speaking** | 3 parts | ~15 | 11-14 min | Claude AI |
 
 ### 2. Dynamic Content Generation
@@ -173,11 +173,11 @@ User submits writing/speaking response
     ↓
 Client sends response to /api/evaluate-{type}
     ↓
-API route validates input, calls Anthropic Claude
+API route validates input, calls NVIDIA (writing) or Anthropic (speaking)
     ↓
 System prompt instructs examiner behavior + JSON schema
     ↓
-Claude returns evaluation in expected JSON format
+Model returns evaluation in expected JSON format
     ↓
 Route validates, parses, and returns to client
     ↓
@@ -243,10 +243,11 @@ Actions: `SET_PHASE`, `SET_MODULE`, `SET_ANSWER`, `SET_WRITING`, `SET_SPEAKING_T
 ```bash
 # Required for question generation
 NVIDIA_API_KEY=your_nvidia_key_here
-NVIDIA_MODEL=minimaxai/minimax-m2.1  # optional
-NVIDIA_READING_MODEL=z-ai/glm4.7    # optional
+NVIDIA_MODEL=mistralai/mistral-small-3.1-24b-instruct-2503  # writing default
+NVIDIA_FALLBACK_MODEL=microsoft/phi-4-mini-flash-reasoning  # writing fallback
+NVIDIA_READING_MODEL=moonshotai/kimi-k2-instruct-0905       # reading/listening default
 
-# Required for response evaluation
+# Required for speaking evaluation
 ANTHROPIC_API_KEY=your_anthropic_key_here
 ANTHROPIC_MODEL=claude-haiku-4-5-20251001  # optional
 ```

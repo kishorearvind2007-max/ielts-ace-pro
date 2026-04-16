@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useTest } from './TestProvider';
 import { TopBar } from './TopBar';
 import { listeningContent } from '@/data/ielts-content';
@@ -21,6 +22,7 @@ type PlaybackSegment =
   | { kind: 'pause'; durationMs: number; stage: 'look-ahead' };
 
 export function ListeningModule() {
+  const router = useRouter();
   const { state, dispatch, submitModule } = useTest();
   const [currentSection, setCurrentSection] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -284,7 +286,9 @@ export function ListeningModule() {
       answers: state.answers.listening,
       listeningValidation: evaluation,
     });
-  }, [allSections, persistListeningSnapshot, state.answers.listening, stopPlayback, submitModule]);
+
+    router.push('/result/listening');
+  }, [allSections, persistListeningSnapshot, router, state.answers.listening, stopPlayback, submitModule]);
 
   const handleSubmit = useCallback(() => {
     submitListening();
