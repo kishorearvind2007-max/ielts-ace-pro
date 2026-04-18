@@ -10,6 +10,7 @@ Create `.env.local` with:
 NVIDIA_API_KEY="your-key"
 NVIDIA_MODEL="mistralai/mistral-small-3.1-24b-instruct-2503"
 NVIDIA_READING_MODEL="moonshotai/kimi-k2-instruct-0905"
+NVIDIA_SPEAKING_MODEL="moonshotai/kimi-k2-instruct-0905"
 NVIDIA_FALLBACK_MODEL="microsoft/phi-4-mini-flash-reasoning"
 NVIDIA_WRITING_GEMMA_ENABLED="false"
 NVIDIA_WRITING_GEMMA_MODEL="google/gemma-4-31b-it"
@@ -48,3 +49,11 @@ Set `NVIDIA_WRITING_GEMMA_ENABLED="true"` to try Gemma first for both Writing qu
 1. The writing module requests `/api/generate-writing-questions`.
 2. Model order follows the same chain as writing evaluation.
 3. If all model attempts fail, the route returns static fallback questions from local content.
+
+## Speaking Flow
+
+1. The speaking module requests `/api/generate-speaking-questions` at module start.
+2. NVIDIA generates Part 1, Part 2 cue card, and Part 3 prompts with static fallback on failure.
+3. Submission sends full transcript to `/api/evaluate-speaking`.
+4. Speaking evaluation returns normalized criterion scores with deterministic fallback when AI is unavailable.
+5. The app stores `speakingResult` in localStorage and opens the dedicated speaking report page.

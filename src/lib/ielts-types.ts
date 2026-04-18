@@ -60,6 +60,54 @@ export interface SpeakingPart {
   speakTime?: number;
 }
 
+export interface CriterionScore {
+  band: number;
+  feedback: string;
+  examples: string[];
+}
+
+export interface SpeakingEvaluationApiResponse {
+  fluency_coherence: CriterionScore;
+  lexical_resource: CriterionScore;
+  grammatical_range: CriterionScore;
+  pronunciation: CriterionScore & {
+    inferred_from?: string;
+  };
+  overall_band: number;
+  strengths: string[];
+  improvements: string[];
+  examiner_comment: string;
+  evaluation_mode: 'ai' | 'fallback';
+  model_used: string;
+  warning?: string;
+  word_count: number;
+}
+
+export interface SpeakingGenerationApiResponse {
+  parts: SpeakingPart[];
+  source: ContentSource;
+  model_used: string;
+  warning?: string;
+}
+
+export interface SpeakingResultSnapshot {
+  band: number;
+  criteriaScores: Record<string, CriterionScore>;
+  strengths: string[];
+  improvements: string[];
+  examinerComment: string;
+  transcripts: {
+    part1: string;
+    part2: string;
+    part3: string;
+  };
+  evaluationMode: 'ai' | 'fallback';
+  modelUsed: string;
+  warning?: string;
+  source?: ContentSource;
+  submittedAt: string;
+}
+
 export interface WritingVocabularyExplanation {
   word: string;
   meaning: string;
@@ -173,7 +221,7 @@ export interface ModuleResult {
   percentage?: number;
   answers?: Record<number, string>;
   listeningValidation?: ListeningValidationSummary;
-  criteriaScores?: Record<string, { band: number; feedback: string; examples: string[] }>;
+  criteriaScores?: Record<string, CriterionScore>;
   strengths?: string[];
   improvements?: string[];
   examinerComment?: string;

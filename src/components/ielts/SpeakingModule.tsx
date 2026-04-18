@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useTest } from './TestProvider';
 import { TopBar } from './TopBar';
 import { speakingContent } from '@/data/ielts-content';
@@ -6,9 +7,100 @@ import { roundIELTS } from '@/lib/scoring';
 import { useAntiCheat } from '@/hooks/use-anti-cheat';
 import { Button } from '@/components/ui/button';
 import { Mic, MicOff, Send, Loader2, ChevronRight, Clock } from 'lucide-react';
+import type {
+  CriterionScore,
+  SpeakingEvaluationApiResponse,
+  SpeakingGenerationApiResponse,
+  SpeakingPart,
+  SpeakingResultSnapshot,
+} from '@/lib/ielts-types';
+
+type TranscriptState = {
+  part1: string;
+  part2: string;
+  part3: string;
+};
+
+type EvaluationRequestResult = {
+  data: SpeakingEvaluationApiResponse | null;
+  error?: string;
+};
+
+function isCriterionScore(value: unknown): value is CriterionScore {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const source = value as Partial<CriterionScore>;
+  return typeof source.band === 'number'
+    && typeof source.feedback === 'string'
+    && Array.isArray(source.examples);
+}
+
+function isValidEvaluationPayload(value: unknown): value is SpeakingEvaluationApiResponse {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const source = value as Partial<SpeakingEvaluationApiResponse>;
+  const pronunciation = source.pronunciation as (CriterionScore & { inferred_from?: string }) | undefined;
+
+  return isCriterionScore(source.fluency_coherence)
+    && isCriterionScore(source.lexical_resource)
+    && isCriterionScore(source.grammatical_range)
+    && isCriterionScore(pronunciation)
+    && (typeof pronunciation?.inferred_from === 'undefined' || typeof pronunciation.inferred_from === 'string')
+    && typeof source.overall_band === 'number'
+    && Array.isArray(source.strengths)
+    && Array.isArray(source.improvements)
+    && typeof source.examiner_comment === 'string'
+    && (source.evaluation_mode === 'ai' || source.evaluation_mode === 'fallback')
+    && typeof source.model_used === 'string'
+    && typeof source.word_count === 'number';
+}
+
+function buildPartKey(partIndex: number): 'part1' | 'part2' | 'part3' {
+  return `part${partIndex + 1}` as 'part1' | 'part2' | 'part3';
+}
+
+function appendTranscriptEntry(existingText: string, question: string, responseText: string): string {
+  const questionLine = `[Q: ${question}]`;
+  const entry = `${questionLine}\n${responseText.trim()}`;
+  return existingText ? `${existingText}\n\n${entry}` : entry;
+}
+
+function buildFullTranscript(transcripts: TranscriptState): string {
+  return `Part 1:\n${transcripts.part1}\n\nPart 2:\n${transcripts.part2}\n\nPart 3:\n${transcripts.part3}`;
+}
+
+function buildFallbackCriteria(band: number): Record<string, CriterionScore> {
+  return {
+    'Fluency & Coherence': {
+      band,
+      feedback: 'Estimated using fallback mode from transcript quality and response length.',
+      examples: [],
+    },
+    'Lexical Resource': {
+      band,
+      feedback: 'Vocabulary range is estimated in fallback mode.',
+      examples: [],
+    },
+    'Grammatical Range': {
+      band,
+      feedback: 'Grammar range is estimated in fallback mode.',
+      examples: [],
+    },
+    Pronunciation: {
+      band,
+      feedback: 'Pronunciation cannot be directly scored from text-only fallback evaluation.',
+      examples: [],
+    },
+  };
+}
 
 export function SpeakingModule() {
-  const { state, dispatch, submitModule } = useTest();
+  const router = useRouter();
+  const { state, dispatch } = useTest();
   const [currentPart, setCurrentPart] = useState(0);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
@@ -18,18 +110,121 @@ export function SpeakingModule() {
   const [speakTimer, setSpeakTimer] = useState(0);
   const [isPreparing, setIsPreparing] = useState(false);
   const [isSpeakingTime, setIsSpeakingTime] = useState(false);
+  const [isLoadingParts, setIsLoadingParts] = useState(true);
+  const [generatedParts, setGeneratedParts] = useState<SpeakingPart[] | null>(null);
+  const [partsWarning, setPartsWarning] = useState<string | null>(null);
+  const [speechSupported, setSpeechSupported] = useState(true);
+  const [contentSource, setContentSource] = useState<'nvidia' | 'fallback'>('fallback');
 
   const recognitionRef = useRef<any>(null);
+  const isRecordingRef = useRef(false);
   const prepIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const speakIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const part = speakingContent[currentPart];
+  const parts = generatedParts ?? speakingContent;
+  const part = parts[currentPart] ?? speakingContent[currentPart];
+
+  const getSpeechRecognition = useCallback(() => {
+    return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  }, []);
+
+  const persistCurrentTranscript = useCallback((currentTranscript: string): TranscriptState => {
+    const cleanedTranscript = currentTranscript.trim();
+    if (!cleanedTranscript) {
+      return state.speakingTranscripts;
+    }
+
+    const partKey = buildPartKey(currentPart);
+    const activeQuestion = part.questions[currentQuestion] ?? `Question ${currentQuestion + 1}`;
+    const existing = state.speakingTranscripts[partKey];
+    const updatedText = appendTranscriptEntry(existing, activeQuestion, cleanedTranscript);
+
+    dispatch({
+      type: 'SET_SPEAKING_TRANSCRIPT',
+      part: partKey,
+      text: updatedText,
+    });
+
+    return {
+      ...state.speakingTranscripts,
+      [partKey]: updatedText,
+    };
+  }, [currentPart, currentQuestion, dispatch, part.questions, state.speakingTranscripts]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const SpeechRecognition = getSpeechRecognition();
+    setSpeechSupported(Boolean(SpeechRecognition));
+  }, [getSpeechRecognition]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadSpeakingPrompts = async () => {
+      try {
+        setIsLoadingParts(true);
+        setPartsWarning(null);
+
+        const response = await fetch('/api/generate-speaking-questions', {
+          method: 'POST',
+        });
+
+        if (!response.ok) {
+          throw new Error('Unable to generate speaking prompts');
+        }
+
+        const data = await response.json() as SpeakingGenerationApiResponse;
+        if (!isMounted) {
+          return;
+        }
+
+        if (Array.isArray(data.parts) && data.parts.length === 3) {
+          setGeneratedParts(data.parts);
+          setContentSource(data.source ?? 'fallback');
+        } else {
+          setGeneratedParts(null);
+          setContentSource('fallback');
+          setPartsWarning('Generated speaking prompts were invalid. Using default prompts.');
+        }
+
+        if (data.source === 'fallback') {
+          setPartsWarning(data.warning ?? 'Using default speaking prompts because generation was unavailable.');
+        } else if (data.warning) {
+          setPartsWarning(data.warning);
+        }
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+        setGeneratedParts(null);
+        setContentSource('fallback');
+        setPartsWarning(error instanceof Error ? error.message : 'Failed to load speaking prompts');
+      } finally {
+        if (isMounted) {
+          setIsLoadingParts(false);
+        }
+      }
+    };
+
+    loadSpeakingPrompts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Speech Recognition setup
   const startRecording = useCallback(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!speechSupported) {
+      return;
+    }
+
+    const SpeechRecognition = getSpeechRecognition();
     if (!SpeechRecognition) {
-      alert('Speech recognition is not supported in this browser. Please use Chrome.');
+      setSpeechSupported(false);
       return;
     }
 
@@ -49,40 +244,47 @@ export function SpeakingModule() {
     recognition.onerror = (event: any) => {
       console.error('Speech recognition error:', event.error);
       if (event.error !== 'no-speech') {
+        isRecordingRef.current = false;
         setIsRecording(false);
       }
     };
 
     recognition.onend = () => {
       // Restart if still recording
-      if (isRecording) {
+      if (isRecordingRef.current) {
         try { recognition.start(); } catch { }
       }
     };
 
     recognitionRef.current = recognition;
     recognition.start();
+    isRecordingRef.current = true;
     setIsRecording(true);
-  }, [isRecording]);
+  }, [getSpeechRecognition, speechSupported]);
 
-  const stopRecording = useCallback(() => {
+  const stopRecording = useCallback((options?: { persist?: boolean }) => {
     recognitionRef.current?.stop();
+    isRecordingRef.current = false;
     setIsRecording(false);
 
-    // Save transcript
-    const partKey = `part${currentPart + 1}` as 'part1' | 'part2' | 'part3';
-    const existing = state.speakingTranscripts[partKey];
-    dispatch({
-      type: 'SET_SPEAKING_TRANSCRIPT',
-      part: partKey,
-      text: existing ? `${existing}\n\n[Q: ${part.questions[currentQuestion]}]\n${transcript}` : `[Q: ${part.questions[currentQuestion]}]\n${transcript}`,
-    });
-  }, [currentPart, currentQuestion, transcript, part, state.speakingTranscripts, dispatch]);
+    if (!options?.persist) {
+      return state.speakingTranscripts;
+    }
+
+    return persistCurrentTranscript(transcript);
+  }, [persistCurrentTranscript, state.speakingTranscripts, transcript]);
 
   // Part 2 prep timer
-  const startPrepTimer = useCallback(() => {
+  const startPrepTimer = useCallback((targetPart: SpeakingPart) => {
+    if (prepIntervalRef.current) {
+      clearInterval(prepIntervalRef.current);
+    }
+    if (speakIntervalRef.current) {
+      clearInterval(speakIntervalRef.current);
+    }
+
     setIsPreparing(true);
-    setPrepTimer(part.prepTime || 60);
+    setPrepTimer(targetPart.prepTime || 60);
 
     prepIntervalRef.current = setInterval(() => {
       setPrepTimer(prev => {
@@ -90,14 +292,15 @@ export function SpeakingModule() {
           clearInterval(prepIntervalRef.current!);
           setIsPreparing(false);
           setIsSpeakingTime(true);
-          setSpeakTimer(part.speakTime || 120);
+          setSpeakTimer(targetPart.speakTime || 120);
           // Start speak timer
           speakIntervalRef.current = setInterval(() => {
             setSpeakTimer(p => {
               if (p <= 1) {
                 clearInterval(speakIntervalRef.current!);
                 setIsSpeakingTime(false);
-                stopRecording();
+                stopRecording({ persist: true });
+                setTranscript('');
                 return 0;
               }
               return p - 1;
@@ -108,27 +311,25 @@ export function SpeakingModule() {
         return prev - 1;
       });
     }, 1000);
-  }, [part, stopRecording]);
+  }, [stopRecording]);
 
   const nextQuestion = useCallback(() => {
-    stopRecording();
+    stopRecording({ persist: true });
     setTranscript('');
 
     if (currentQuestion < part.questions.length - 1) {
       setCurrentQuestion(currentQuestion + 1);
-    } else if (currentPart < 2) {
+    } else if (currentPart < parts.length - 1) {
       setCurrentPart(currentPart + 1);
       setCurrentQuestion(0);
-      if (currentPart + 1 === 1 && speakingContent[1].cueCard) {
+      if (currentPart + 1 === 1 && parts[1]?.cueCard) {
         // Part 2: start prep timer
-        startPrepTimer();
+        startPrepTimer(parts[1]);
       }
     }
-  }, [currentQuestion, currentPart, part, stopRecording, startPrepTimer]);
+  }, [currentQuestion, currentPart, part.questions.length, parts, startPrepTimer, stopRecording]);
 
-  const evaluateWithAI = useCallback(async () => {
-    const fullTranscript = `Part 1:\n${state.speakingTranscripts.part1}\n\nPart 2:\n${state.speakingTranscripts.part2}\n\nPart 3:\n${state.speakingTranscripts.part3}`;
-
+  const evaluateWithAI = useCallback(async (fullTranscript: string): Promise<EvaluationRequestResult> => {
     try {
       const response = await fetch('/api/evaluate-speaking', {
         method: 'POST',
@@ -140,64 +341,191 @@ export function SpeakingModule() {
         }),
       });
 
-      if (!response.ok) throw new Error('API error');
-      return await response.json();
-    } catch {
-      return null;
+      if (!response.ok) {
+        let detail = '';
+
+        try {
+          const errorPayload = await response.clone().json() as {
+            error?: unknown;
+            warning?: unknown;
+            message?: unknown;
+          };
+          const firstText = [errorPayload.error, errorPayload.warning, errorPayload.message]
+            .find(item => typeof item === 'string') as string | undefined;
+          detail = firstText?.trim() ?? '';
+        } catch {
+          detail = (await response.text()).trim();
+        }
+
+        const reason = detail ? `API ${response.status}: ${detail}` : `API ${response.status}`;
+        return { data: null, error: reason };
+      }
+
+      const payload = await response.json() as unknown;
+      if (!isValidEvaluationPayload(payload)) {
+        return { data: null, error: 'Malformed evaluation payload.' };
+      }
+
+      return { data: payload };
+    } catch (error) {
+      return {
+        data: null,
+        error: error instanceof Error ? error.message : 'Network error during speaking evaluation.',
+      };
     }
-  }, [state.speakingTranscripts]);
+  }, []);
 
   const handleSubmit = useCallback(async () => {
-    stopRecording();
+    if (isEvaluating) {
+      return;
+    }
+
     setIsEvaluating(true);
 
-    let band = 5.5;
-    let criteriaScores: Record<string, { band: number; feedback: string; examples: string[] }> = {};
+    const finalTranscripts = stopRecording({ persist: true });
+    setTranscript('');
+
+    const transcriptWordCount = Object.values(finalTranscripts)
+      .join(' ')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .length;
+    const fullTranscript = buildFullTranscript(finalTranscripts);
+
+    let band = 5.0;
+    let criteriaScores: Record<string, CriterionScore> = {};
     let strengths: string[] = [];
     let improvements: string[] = [];
     let examinerComment = '';
+    let evaluationMode: 'ai' | 'fallback' = 'fallback';
+    let modelUsed = 'word-count-fallback';
+    let warning: string | undefined;
 
-    const result = await evaluateWithAI();
-    if (result) {
-      band = result.overall_band;
-      criteriaScores = {
-        'Fluency & Coherence': result.fluency_coherence,
-        'Lexical Resource': result.lexical_resource,
-        'Grammatical Range': result.grammatical_range,
-        'Pronunciation': result.pronunciation,
+    try {
+      const evaluation: EvaluationRequestResult = transcriptWordCount > 0
+        ? await evaluateWithAI(fullTranscript)
+        : { data: null };
+      const result = evaluation.data;
+
+      if (result) {
+        band = result.overall_band;
+        criteriaScores = {
+          'Fluency & Coherence': result.fluency_coherence,
+          'Lexical Resource': result.lexical_resource,
+          'Grammatical Range': result.grammatical_range,
+          Pronunciation: {
+            ...result.pronunciation,
+            examples: result.pronunciation.examples ?? [],
+          },
+        };
+        strengths = result.strengths || [];
+        improvements = result.improvements || [];
+        examinerComment = result.examiner_comment || '';
+        evaluationMode = result.evaluation_mode;
+        modelUsed = result.model_used || modelUsed;
+        warning = result.warning;
+      } else if (transcriptWordCount === 0) {
+        band = 4.0;
+        criteriaScores = buildFallbackCriteria(band);
+        strengths = ['You completed the speaking flow.'];
+        improvements = ['Record at least one spoken response before submitting for AI scoring.'];
+        examinerComment = 'No transcript was captured, so AI evaluation was skipped.';
+        warning = 'No transcript text was captured; fallback scoring was used.';
+      } else {
+        band = transcriptWordCount >= 200 ? 6.0 : transcriptWordCount >= 100 ? 5.0 : 4.0;
+        criteriaScores = buildFallbackCriteria(band);
+        examinerComment = 'AI evaluation unavailable. Fallback scoring was used.';
+        warning = evaluation.error ?? 'Speaking evaluator route did not return a valid payload.';
+      }
+
+      if (Object.keys(criteriaScores).length === 0) {
+        criteriaScores = buildFallbackCriteria(band);
+      }
+
+      const roundedBand = roundIELTS(band);
+
+      let snapshot: SpeakingResultSnapshot = {
+        band: roundedBand,
+        criteriaScores,
+        strengths,
+        improvements,
+        examinerComment,
+        transcripts: finalTranscripts,
+        evaluationMode,
+        modelUsed,
+        warning,
+        source: contentSource,
+        submittedAt: new Date().toISOString(),
       };
-      strengths = result.strengths || [];
-      improvements = result.improvements || [];
-      examinerComment = result.examiner_comment || '';
-    } else {
-      // Fallback
-      const totalWords = Object.values(state.speakingTranscripts).join(' ').split(/\s+/).length;
-      band = totalWords >= 200 ? 6.0 : totalWords >= 100 ? 5.0 : 4.0;
-      examinerComment = 'AI evaluation unavailable. Configure ANTHROPIC_API_KEY on the server for detailed feedback.';
-    }
 
-    submitModule({
-      module: 'speaking',
-      band: roundIELTS(band),
-      criteriaScores,
-      strengths,
-      improvements,
-      examinerComment,
-    });
-    setIsEvaluating(false);
-  }, [state.speakingTranscripts, evaluateWithAI, stopRecording, submitModule]);
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.setItem('speakingResult', JSON.stringify(snapshot));
+        } catch (error) {
+          const storageWarning = error instanceof Error
+            ? `Could not save speaking report snapshot: ${error.message}`
+            : 'Could not save speaking report snapshot.';
+          warning = warning ? `${warning} ${storageWarning}` : storageWarning;
+          snapshot = {
+            ...snapshot,
+            warning,
+          };
+        }
+      }
+
+      dispatch({
+        type: 'ADD_RESULT',
+        result: {
+          module: 'speaking',
+          band: roundedBand,
+          criteriaScores,
+          strengths,
+          improvements,
+          examinerComment,
+        },
+      });
+      dispatch({ type: 'SET_PHASE', phase: 'home' });
+      dispatch({ type: 'SET_MODULE', module: null });
+      dispatch({ type: 'SET_TIMER_RUNNING', running: false });
+
+      router.push('/result/speaking');
+    } finally {
+      setIsEvaluating(false);
+    }
+  }, [contentSource, dispatch, evaluateWithAI, isEvaluating, router, stopRecording]);
 
   useEffect(() => {
     return () => {
+      isRecordingRef.current = false;
       recognitionRef.current?.stop();
       if (prepIntervalRef.current) clearInterval(prepIntervalRef.current);
       if (speakIntervalRef.current) clearInterval(speakIntervalRef.current);
     };
   }, []);
 
-  const isLastQuestion = currentPart === 2 && currentQuestion === part.questions.length - 1;
+  const isLastQuestion = currentPart === parts.length - 1 && currentQuestion === part.questions.length - 1;
 
   const { tabSwitchCount } = useAntiCheat({ onAutoSubmit: handleSubmit });
+
+  if (isLoadingParts && !generatedParts) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <TopBar
+          title="Speaking — Loading"
+          totalSeconds={840}
+          onTimeUp={handleSubmit}
+          tabSwitchCount={tabSwitchCount}
+        />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex items-center gap-3 text-sm text-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Generating speaking prompts...
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -209,6 +537,17 @@ export function SpeakingModule() {
       />
 
       <div className="flex-1 max-w-3xl mx-auto w-full px-6 py-8">
+        {partsWarning && (
+          <div className="mb-4 text-xs text-warning">Using default speaking prompts: {partsWarning}</div>
+        )}
+
+        {!speechSupported && (
+          <div className="mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/30">
+            <p className="text-sm font-semibold text-destructive mb-1">Speech recognition is unavailable</p>
+            <p className="text-sm text-foreground">This speaking test requires browser speech recognition. Please use a supported browser such as Chrome to continue.</p>
+          </div>
+        )}
+
         {/* Part indicators */}
         <div className="flex gap-3 mb-8">
           {[1, 2, 3].map(p => (
@@ -260,11 +599,11 @@ export function SpeakingModule() {
         {/* Mic button */}
         <div className="flex flex-col items-center gap-6 mb-8">
           <button
-            onClick={isRecording ? stopRecording : startRecording}
-            disabled={isPreparing}
+            onClick={isRecording ? () => stopRecording({ persist: true }) : startRecording}
+            disabled={isPreparing || !speechSupported}
             className={`w-24 h-24 rounded-full flex items-center justify-center transition-all ${isRecording
                 ? 'bg-destructive animate-pulse-recording'
-                : isPreparing
+                : (isPreparing || !speechSupported)
                   ? 'bg-secondary cursor-not-allowed'
                   : 'bg-primary hover:bg-primary/80'
               }`}
@@ -272,7 +611,13 @@ export function SpeakingModule() {
             {isRecording ? <MicOff className="w-10 h-10 text-foreground" /> : <Mic className="w-10 h-10 text-primary-foreground" />}
           </button>
           <span className="text-sm text-muted-foreground">
-            {isRecording ? 'Tap to stop recording' : isPreparing ? 'Preparing...' : 'Tap to start recording'}
+            {isRecording
+              ? 'Tap to stop recording'
+              : isPreparing
+                ? 'Preparing...'
+                : !speechSupported
+                  ? 'Recording unavailable in this browser'
+                  : 'Tap to start recording'}
           </span>
         </div>
 
@@ -287,11 +632,11 @@ export function SpeakingModule() {
         {/* Navigation */}
         <div className="flex justify-end gap-3 pb-8">
           {!isLastQuestion ? (
-            <Button onClick={nextQuestion}>
+            <Button onClick={nextQuestion} disabled={!speechSupported}>
               Next Question <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
           ) : (
-            <Button onClick={handleSubmit} disabled={isEvaluating}>
+            <Button onClick={handleSubmit} disabled={isEvaluating || !speechSupported}>
               {isEvaluating ? (
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Evaluating...</>
               ) : (

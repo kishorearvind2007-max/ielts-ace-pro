@@ -50,14 +50,13 @@ const studentSchema = new Schema<Student>(
   },
 );
 
-studentSchema.pre('validate', function normalizeIdentityFields(next) {
+studentSchema.pre('validate', function normalizeIdentityFields() {
   if (this.registerNumber) {
     this.registerNumber = normalizeRegisterNumber(this.registerNumber);
   }
   if (this.email) {
     this.email = normalizeEmail(this.email);
   }
-  next();
 });
 
 const StudentModel = (mongoose.models.Student as Model<Student> | undefined) ?? mongoose.model<Student>('Student', studentSchema);

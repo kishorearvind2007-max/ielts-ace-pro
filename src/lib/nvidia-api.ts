@@ -1,4 +1,4 @@
-import { ListeningSection, ReadingPassage, WritingTask } from '@/lib/ielts-types';
+import { ListeningSection, ReadingPassage, SpeakingPart, WritingTask } from '@/lib/ielts-types';
 
 type NvidiaChatResponseEnvelope = {
   choices?: Array<{ message?: { content?: string } }>;
@@ -52,10 +52,27 @@ type NvidiaListeningResponse = {
   section?: NvidiaListeningSection;
 } & Partial<NvidiaListeningSection>;
 
+type NvidiaSpeakingPart = {
+  part: number;
+  questions: string[];
+  cueCard?: {
+    topic: string;
+    points: string[];
+    followUp: string;
+  };
+  prepTime?: number;
+  speakTime?: number;
+};
+
+type NvidiaSpeakingResponse = {
+  parts?: NvidiaSpeakingPart[];
+} | NvidiaSpeakingPart[];
+
 const NVIDIA_API_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
 const NVIDIA_MODEL = process.env.NVIDIA_MODEL ?? 'mistralai/mistral-small-3.1-24b-instruct-2503';
 const NVIDIA_READING_MODEL = process.env.NVIDIA_READING_MODEL ?? 'moonshotai/kimi-k2-instruct-0905';
 const NVIDIA_LISTENING_MODEL = process.env.NVIDIA_LISTENING_MODEL ?? NVIDIA_READING_MODEL;
+const NVIDIA_SPEAKING_MODEL = process.env.NVIDIA_SPEAKING_MODEL ?? NVIDIA_READING_MODEL;
 const NVIDIA_FALLBACK_MODEL = process.env.NVIDIA_FALLBACK_MODEL ?? 'microsoft/phi-4-mini-flash-reasoning';
 const NVIDIA_WRITING_GEMMA_ENABLED = process.env.NVIDIA_WRITING_GEMMA_ENABLED === 'true';
 const NVIDIA_WRITING_GEMMA_MODEL = process.env.NVIDIA_WRITING_GEMMA_MODEL ?? 'google/gemma-4-31b-it';
@@ -224,6 +241,47 @@ Strict constraints:
 - answerKey must contain all question ids from ${config.questionStart} to ${config.questionEnd}.
 - Answers must be concise and must match the script.
 - Difficulty level: ${difficulty}.
+
+Return JSON only. No markdown, no extra text.`;
+}
+
+function buildSpeakingPrompt(difficulty: string) {
+  return `Generate IELTS Academic Speaking test content in JSON only.
+
+Return JSON with this exact shape:
+{
+  "parts": [
+    {
+      "part": 1,
+      "questions": ["..."]
+    },
+    {
+      "part": 2,
+      "questions": ["..."],
+      "cueCard": {
+        "topic": "...",
+        "points": ["...", "...", "...", "..."],
+        "followUp": "..."
+      },
+      "prepTime": 60,
+      "speakTime": 120
+    },
+    {
+      "part": 3,
+      "questions": ["..."]
+    }
+  ]
+}
+
+Strict constraints:
+- Generate exactly 3 parts with part ids 1, 2, and 3.
+- Part 1 must contain 5 to 7 short introductory questions.
+- Part 2 must contain exactly 1 long-turn question and a cue card with exactly 4 bullet points.
+- Part 3 must contain 4 to 6 discussion questions connected to Part 2 theme.
+- Part 2 prepTime must be 60 and speakTime must be 120.
+- Use realistic IELTS speaking topics suitable for Academic test takers.
+- Difficulty level: ${difficulty}.
+- Keep language natural and examiner-like.
 
 Return JSON only. No markdown, no extra text.`;
 }
@@ -516,6 +574,84 @@ function validateGeneratedListening(section: ListeningSection, sectionNumber: nu
   return section;
 }
 
+function normalizeSpeakingPart(rawPart: NvidiaSpeakingPart, index: number): SpeakingPart {
+  const resolvedPart = Number(rawPart?.part);
+  const fallbackPart = (index + 1) as 1 | 2 | 3;
+  const part = (resolvedPart === 1 || resolvedPart === 2 || resolvedPart === 3)
+    ? resolvedPart as 1 | 2 | 3
+    : fallbackPart;
+
+  const questions = Array.isArray(rawPart?.questions)
+    ? rawPart.questions.map(question => String(question).trim()).filter(Boolean)
+    : [];
+
+  const cueCard = rawPart?.cueCard
+    ? {
+      topic: String(rawPart.cueCard.topic ?? '').trim(),
+      points: Array.isArray(rawPart.cueCard.points)
+        ? rawPart.cueCard.points.map(point => String(point).trim()).filter(Boolean)
+        : [],
+      followUp: String(rawPart.cueCard.followUp ?? '').trim(),
+    }
+    : undefined;
+
+  if (part !== 2) {
+    return {
+      part,
+      questions,
+    };
+  }
+
+  const normalizedPrep = Number(rawPart?.prepTime);
+  const normalizedSpeak = Number(rawPart?.speakTime);
+
+  return {
+    part,
+    questions,
+    cueCard,
+    prepTime: Number.isFinite(normalizedPrep)
+      ? Math.max(45, Math.min(90, Math.round(normalizedPrep)))
+      : 60,
+    speakTime: Number.isFinite(normalizedSpeak)
+      ? Math.max(90, Math.min(180, Math.round(normalizedSpeak)))
+      : 120,
+  };
+}
+
+function validateGeneratedSpeaking(parts: SpeakingPart[]): SpeakingPart[] {
+  if (parts.length !== 3) {
+    throw new Error('Generated speaking content must contain exactly 3 parts');
+  }
+
+  const ordered = [...parts].sort((a, b) => a.part - b.part);
+  const validOrder = ordered.every((part, index) => part.part === index + 1);
+  if (!validOrder) {
+    throw new Error('Generated speaking parts must be ordered as 1, 2, 3');
+  }
+
+  const part1 = ordered[0];
+  const part2 = ordered[1];
+  const part3 = ordered[2];
+
+  if (part1.questions.length < 4) {
+    throw new Error('Generated speaking part 1 must contain at least 4 questions');
+  }
+
+  if (part2.questions.length !== 1) {
+    throw new Error('Generated speaking part 2 must contain exactly 1 question');
+  }
+
+  if (!part2.cueCard || !part2.cueCard.topic || part2.cueCard.points.length < 3 || !part2.cueCard.followUp) {
+    throw new Error('Generated speaking part 2 cue card is incomplete');
+  }
+
+  if (part3.questions.length < 4) {
+    throw new Error('Generated speaking part 3 must contain at least 4 questions');
+  }
+
+  return ordered;
+}
+
 export async function generateWritingQuestions(
   difficulty = 'Band 6',
 ): Promise<{ task1: WritingTask; task2: WritingTask; modelUsed: string }> {
@@ -592,4 +728,30 @@ export async function generateListeningSection(
   const section = validateGeneratedListening(normalized, sectionNumber);
 
   return { section, modelUsed: model };
+}
+
+export async function generateSpeakingQuestions(
+  difficulty = 'Band 6',
+): Promise<{ parts: SpeakingPart[]; modelUsed: string }> {
+  const { content, model } = await callNvidiaWithFallback(buildSpeakingPrompt(difficulty), [
+    NVIDIA_SPEAKING_MODEL,
+    NVIDIA_FALLBACK_MODEL,
+  ]);
+
+  let parsed: NvidiaSpeakingResponse;
+  try {
+    const json = extractFirstJsonObject(content);
+    parsed = JSON.parse(json) as NvidiaSpeakingResponse;
+  } catch {
+    throw new Error('Failed to parse Nvidia speaking response as JSON');
+  }
+
+  const rawParts = Array.isArray(parsed)
+    ? parsed
+    : (Array.isArray(parsed?.parts) ? parsed.parts : []);
+
+  const normalized = rawParts.map((part, index) => normalizeSpeakingPart(part, index));
+  const parts = validateGeneratedSpeaking(normalized);
+
+  return { parts, modelUsed: model };
 }

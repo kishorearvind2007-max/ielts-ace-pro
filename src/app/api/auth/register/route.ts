@@ -11,6 +11,62 @@ import { registerSchema } from '@/lib/auth/validators';
 
 export const runtime = 'nodejs';
 
+type MongoDuplicateKeyError = {
+  code?: unknown;
+  keyPattern?: Record<string, unknown>;
+  keyValue?: Record<string, unknown>;
+};
+
+function isMongoDuplicateKeyError(error: unknown): error is MongoDuplicateKeyError {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  return 'code' in error && (error as { code?: unknown }).code === 11000;
+}
+
+function resolveDuplicateField(error: MongoDuplicateKeyError): 'registerNumber' | 'email' | null {
+  if (error.keyPattern && typeof error.keyPattern === 'object') {
+    if ('registerNumber' in error.keyPattern) {
+      return 'registerNumber';
+    }
+
+    if ('email' in error.keyPattern) {
+      return 'email';
+    }
+  }
+
+  if (error.keyValue && typeof error.keyValue === 'object') {
+    if ('registerNumber' in error.keyValue) {
+      return 'registerNumber';
+    }
+
+    if ('email' in error.keyValue) {
+      return 'email';
+    }
+  }
+
+  return null;
+}
+
+function isAuthInfrastructureError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return ['MONGODB_URI', 'MONGODB_DB_NAME', 'JWT_SECRET'].some((needle) => error.message.includes(needle));
+}
+
+function logRegisterError(error: unknown): void {
+  const errorName = error instanceof Error ? error.name : 'UnknownError';
+  const errorMessage = error instanceof Error ? error.message : String(error);
+
+  console.error('[auth/register] Failed to create account', {
+    errorName,
+    errorMessage,
+  });
+}
+
 export async function POST(request: Request) {
   let body: unknown;
   try {
@@ -65,6 +121,26 @@ export async function POST(request: Request) {
     await attachSessionCookie(response, sessionUser);
     return response;
   } catch (error) {
-    return authError('SERVER_ERROR', 'Failed to create account.', 500, error instanceof Error ? error.message : undefined);
+    if (isMongoDuplicateKeyError(error)) {
+      const duplicateField = resolveDuplicateField(error);
+
+      if (duplicateField === 'registerNumber') {
+        return authError('CONFLICT', 'Register number already exists.', 409);
+      }
+
+      if (duplicateField === 'email') {
+        return authError('CONFLICT', 'Email already exists.', 409);
+      }
+
+      return authError('CONFLICT', 'Account already exists.', 409);
+    }
+
+    logRegisterError(error);
+
+    if (isAuthInfrastructureError(error)) {
+      return authError('SERVER_ERROR', 'Registration is unavailable due to server configuration.', 500);
+    }
+
+    return authError('SERVER_ERROR', 'Failed to create account.', 500);
   }
 }

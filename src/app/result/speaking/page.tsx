@@ -1,26 +1,86 @@
 "use client";
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { ArrowLeft, BarChart3, CheckCircle2, Home, MessageSquare, Mic, TrendingUp } from 'lucide-react';
-import { useTest } from '@/components/ielts/TestProvider';
+import { ArrowLeft, BarChart3, CheckCircle2, Home, MessageSquare, Mic, RotateCcw, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useTest } from '@/components/ielts/TestProvider';
+import type { SpeakingResultSnapshot } from '@/lib/ielts-types';
 
 export default function SpeakingResultPage() {
   const router = useRouter();
   const { state } = useTest();
-
-  const speakingResult = useMemo(
-    () => state.results.find(result => result.module === 'speaking'),
-    [state.results],
-  );
+  const [speakingResult, setSpeakingResult] = useState<SpeakingResultSnapshot | null>(null);
 
   useEffect(() => {
-    if (!speakingResult) {
+    const buildStateFallback = (): SpeakingResultSnapshot | null => {
+      const providerSpeakingResult = state.results.find(result => result.module === 'speaking');
+      if (!providerSpeakingResult) {
+        return null;
+      }
+
+      return {
+        band: providerSpeakingResult.band,
+        criteriaScores: providerSpeakingResult.criteriaScores ?? {},
+        strengths: providerSpeakingResult.strengths ?? [],
+        improvements: providerSpeakingResult.improvements ?? [],
+        examinerComment: providerSpeakingResult.examinerComment ?? '',
+        transcripts: state.speakingTranscripts,
+        evaluationMode: 'fallback',
+        modelUsed: 'context-fallback',
+        warning: 'Loaded from in-memory result because local snapshot was unavailable.',
+        source: 'fallback',
+        submittedAt: new Date().toISOString(),
+      };
+    };
+
+    const setStateFallbackOrRedirect = () => {
+      const fallbackResult = buildStateFallback();
+      if (fallbackResult) {
+        setSpeakingResult(fallbackResult);
+        return;
+      }
+
       router.push('/results');
+    };
+
+    let raw: string | null = null;
+    try {
+      raw = localStorage.getItem('speakingResult');
+    } catch {
+      setStateFallbackOrRedirect();
+      return;
     }
-  }, [speakingResult, router]);
+
+    if (!raw) {
+      setStateFallbackOrRedirect();
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as SpeakingResultSnapshot;
+      if (!parsed || typeof parsed.band !== 'number' || !parsed.criteriaScores || !parsed.transcripts) {
+        throw new Error('Invalid speaking result payload');
+      }
+
+      setSpeakingResult(parsed);
+    } catch {
+      setStateFallbackOrRedirect();
+    }
+  }, [router, state.results, state.speakingTranscripts]);
+
+  const transcriptEntries = useMemo(() => {
+    if (!speakingResult) {
+      return [] as Array<{ key: string; label: string; value: string }>;
+    }
+
+    return [
+      { key: 'part1', label: 'Part 1 Transcript', value: speakingResult.transcripts.part1 },
+      { key: 'part2', label: 'Part 2 Transcript', value: speakingResult.transcripts.part2 },
+      { key: 'part3', label: 'Part 3 Transcript', value: speakingResult.transcripts.part3 },
+    ].filter(entry => entry.value.trim().length > 0);
+  }, [speakingResult]);
 
   if (!speakingResult) {
     return (
@@ -60,7 +120,7 @@ export default function SpeakingResultPage() {
           transition={{ delay: 0.05 }}
           className="rounded-2xl border border-primary/25 bg-gradient-card p-6"
         >
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-4">
             <div className="rounded-xl border border-border bg-card p-4 text-center">
               <p className="text-xs uppercase tracking-wider text-muted-foreground">Overall Band</p>
               <p className="text-3xl font-bold text-primary">{speakingResult.band}</p>
@@ -75,6 +135,15 @@ export default function SpeakingResultPage() {
                 {(speakingResult.strengths?.length ?? 0) + (speakingResult.improvements?.length ?? 0)}
               </p>
             </div>
+            <div className="rounded-xl border border-border bg-card p-4 text-center">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Evaluation Mode</p>
+              <p className="text-sm font-bold text-foreground uppercase">{speakingResult.evaluationMode}</p>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-lg border border-border bg-card p-3 text-xs text-muted-foreground">
+            <p>Model: {speakingResult.modelUsed}</p>
+            {speakingResult.warning && <p className="mt-1 text-warning">Warning: {speakingResult.warning}</p>}
           </div>
         </motion.div>
 
@@ -178,10 +247,33 @@ export default function SpeakingResultPage() {
           </motion.div>
         )}
 
+        {transcriptEntries.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="rounded-xl border border-border bg-card p-4"
+          >
+            <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+              <Mic className="w-4 h-4 text-primary" />
+              Transcript Archive
+            </h2>
+
+            <div className="space-y-3 max-h-[45vh] overflow-y-auto pr-1">
+              {transcriptEntries.map(entry => (
+                <div key={entry.key} className="rounded-lg border border-border bg-secondary/30 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{entry.label}</p>
+                  <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{entry.value}</p>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
+          transition={{ delay: 0.35 }}
           className="flex flex-wrap justify-center gap-3"
         >
           <Button variant="secondary" onClick={() => router.push('/results')}>
@@ -189,6 +281,19 @@ export default function SpeakingResultPage() {
           </Button>
           <Button variant="outline" onClick={() => router.push('/result')}>
             <BarChart3 className="w-4 h-4 mr-2" /> Report Hub
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              try {
+                localStorage.removeItem('speakingResult');
+              } catch {
+                // ignore storage cleanup failures and continue navigation
+              }
+              router.push('/speaking');
+            }}
+          >
+            <RotateCcw className="w-4 h-4 mr-2" /> Retake Speaking
           </Button>
           <Button onClick={() => router.push('/')}>
             <Home className="w-4 h-4 mr-2" /> Home

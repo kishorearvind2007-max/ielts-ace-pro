@@ -16,11 +16,14 @@ export function authError(
   status: number,
   details?: unknown,
 ) {
+  const includeDetails =
+    details !== undefined && (code !== 'SERVER_ERROR' || process.env.NODE_ENV !== 'production');
+
   return NextResponse.json(
     {
       error: code,
       message,
-      details,
+      ...(includeDetails ? { details } : {}),
     },
     { status },
   );
