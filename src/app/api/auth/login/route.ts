@@ -11,6 +11,24 @@ import { loginSchema } from '@/lib/auth/validators';
 
 export const runtime = 'nodejs';
 
+function isAuthInfrastructureError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return ['MONGODB_URI', 'MONGODB_DB_NAME', 'JWT_SECRET'].some((needle) => error.message.includes(needle));
+}
+
+function logLoginError(error: unknown): void {
+  const errorName = error instanceof Error ? error.name : 'UnknownError';
+  const errorMessage = error instanceof Error ? error.message : String(error);
+
+  console.error('[auth/login] Failed to login', {
+    errorName,
+    errorMessage,
+  });
+}
+
 export async function POST(request: Request) {
   let body: unknown;
   try {
@@ -40,7 +58,18 @@ export async function POST(request: Request) {
       return authError('INVALID_CREDENTIALS', 'Invalid register number or password.', 401);
     }
 
-    const isPasswordValid = await verifyPassword(input.password, student.passwordHash);
+    // Legacy or externally-seeded records can miss a usable bcrypt hash.
+    if (typeof student.passwordHash !== 'string' || student.passwordHash.length === 0) {
+      return authError('INVALID_CREDENTIALS', 'Invalid register number or password.', 401);
+    }
+
+    let isPasswordValid = false;
+    try {
+      isPasswordValid = await verifyPassword(input.password, student.passwordHash);
+    } catch {
+      return authError('INVALID_CREDENTIALS', 'Invalid register number or password.', 401);
+    }
+
     if (!isPasswordValid) {
       return authError('INVALID_CREDENTIALS', 'Invalid register number or password.', 401);
     }
@@ -52,6 +81,12 @@ export async function POST(request: Request) {
     await attachSessionCookie(response, toSessionUser(student));
     return response;
   } catch (error) {
-    return authError('SERVER_ERROR', 'Failed to login.', 500, error instanceof Error ? error.message : undefined);
+    logLoginError(error);
+
+    if (isAuthInfrastructureError(error)) {
+      return authError('SERVER_ERROR', 'Login is unavailable due to server configuration.', 500);
+    }
+
+    return authError('SERVER_ERROR', 'Failed to login.', 500);
   }
 }
