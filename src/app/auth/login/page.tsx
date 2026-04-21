@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { DEMO_USER, isDemoEnabled } from '@/lib/auth/demo-user';
 import { sanitizeNextPath } from '@/lib/auth/navigation';
 
 type LoginResponse = {
@@ -50,6 +51,7 @@ export default function LoginPage() {
 
   const oauthErrorCode = searchParams.get('error');
   const oauthError = oauthErrorCode ? oauthErrorMessages[oauthErrorCode] : '';
+  const showDemoCredentials = isDemoEnabled();
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -102,6 +104,19 @@ export default function LoginPage() {
               <AlertTitle>Sign-in issue</AlertTitle>
               <AlertDescription>{oauthError || formError}</AlertDescription>
             </Alert>
+          )}
+
+          {showDemoCredentials && (
+            <div className="rounded-lg border border-success/40 bg-success/10 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-success mb-2">Development Demo Account</p>
+              <div className="space-y-1 text-sm text-foreground">
+                <p>Register Number: <span className="font-mono font-semibold">{DEMO_USER.registerNumber}</span></p>
+                <p>Password: <span className="font-mono font-semibold">{DEMO_USER.password}</span></p>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                This account is available only in non-production environments and is preloaded as certificate-eligible.
+              </p>
+            </div>
           )}
 
           <form className="space-y-4" onSubmit={handleSubmit}>

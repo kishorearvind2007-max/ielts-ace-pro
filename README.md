@@ -33,6 +33,12 @@ Set `NVIDIA_WRITING_GEMMA_ENABLED="true"` to try Gemma first for both Writing qu
 - Sessions are managed with secure httpOnly JWT cookies.
 - Middleware protects app routes and redirects unauthenticated users to `/auth/login`.
 
+## Certificate Preview and Download
+
+- Certificate preview (`/api/certificates/preview/:certificateId`) is generated from a shared HTML renderer.
+- Certificate download (`/api/certificates/download/:certificateId`) now uses Playwright (headless Chromium) to export that same HTML as PDF, ensuring download format and font styling match preview as closely as possible.
+- If Chromium cannot be launched in the runtime environment, the backend falls back to the existing pdf-lib generator so downloads still succeed.
+
 ## Writing Evaluation Flow
 
 1. User completes Task 1 and Task 2 essays.

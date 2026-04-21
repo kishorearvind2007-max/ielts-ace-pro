@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { connectToDatabase } from '@/lib/auth/db';
+import { DEMO_USER, isDemoCredentialInput } from '@/lib/auth/demo-user';
 import { authError } from '@/lib/auth/http';
-import { verifyPassword } from '@/lib/auth/password';
+import { hashPassword, verifyPassword } from '@/lib/auth/password';
 import { attachSessionCookie } from '@/lib/auth/session';
 import { toPublicStudent, toSessionUser } from '@/lib/auth/student-mappers';
 import { StudentModel } from '@/lib/auth/student-model';
-import { normalizeRegisterNumber } from '@/lib/auth/types';
+import { normalizeEmail, normalizeRegisterNumber } from '@/lib/auth/types';
 import { loginSchema } from '@/lib/auth/validators';
 
 export const runtime = 'nodejs';
@@ -26,6 +27,28 @@ function logLoginError(error: unknown): void {
   console.error('[auth/login] Failed to login', {
     errorName,
     errorMessage,
+  });
+}
+
+async function ensureDemoStudent() {
+  const registerNumber = normalizeRegisterNumber(DEMO_USER.registerNumber);
+  const email = normalizeEmail(DEMO_USER.email);
+  const passwordHash = await hashPassword(DEMO_USER.password);
+
+  const existingStudent = await StudentModel.findOne({ registerNumber });
+  if (existingStudent) {
+    existingStudent.fullName = DEMO_USER.fullName;
+    existingStudent.email = email;
+    existingStudent.passwordHash = passwordHash;
+    await existingStudent.save();
+    return existingStudent;
+  }
+
+  return StudentModel.create({
+    fullName: DEMO_USER.fullName,
+    registerNumber,
+    email,
+    passwordHash,
   });
 }
 
@@ -52,6 +75,17 @@ export async function POST(request: Request) {
     await connectToDatabase();
 
     const registerNumber = normalizeRegisterNumber(input.registerNumber);
+    if (isDemoCredentialInput(registerNumber, input.password)) {
+      const demoStudent = await ensureDemoStudent();
+
+      const response = NextResponse.json({
+        user: toPublicStudent(demoStudent),
+      });
+
+      await attachSessionCookie(response, toSessionUser(demoStudent));
+      return response;
+    }
+
     const student = await StudentModel.findOne({ registerNumber });
 
     if (!student) {

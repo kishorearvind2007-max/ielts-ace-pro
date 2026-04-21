@@ -1,7 +1,13 @@
 "use client";
 
-import React, { createContext, useContext, useReducer, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/components/auth/AuthProvider';
+import {
+  buildDemoEligibleModuleResults,
+  isDemoEnabled,
+  isDemoRegisterNumber,
+} from '@/lib/auth/demo-user';
 import { TestState, TestAction, TestModule, ModuleResult } from '@/lib/ielts-types';
 
 const initialState: TestState = {
@@ -72,7 +78,27 @@ const TestContext = createContext<TestContextType | null>(null);
 
 export function TestProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const { user } = useAuth();
   const [state, dispatch] = useReducer(testReducer, initialState);
+
+  useEffect(() => {
+    if (!isDemoEnabled()) {
+      return;
+    }
+
+    if (!isDemoRegisterNumber(user?.registerNumber)) {
+      return;
+    }
+
+    if (state.results.length > 0) {
+      return;
+    }
+
+    dispatch({
+      type: 'LOAD_RESULTS',
+      results: buildDemoEligibleModuleResults(),
+    });
+  }, [state.results.length, user?.registerNumber]);
 
   const startModule = useCallback((module: TestModule) => {
     dispatch({ type: 'SET_MODULE', module });

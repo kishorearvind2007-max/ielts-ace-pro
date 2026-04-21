@@ -19,6 +19,11 @@ function isAuthRoute(pathname: string): boolean {
   return pathname === '/auth/login' || pathname === '/auth/register';
 }
 
+function isPublicApiRoute(pathname: string): boolean {
+  return pathname.startsWith('/api/certificates/verify/')
+    || pathname === '/api/certificates/sample';
+}
+
 function buildLoginRedirect(request: NextRequest): NextResponse {
   const loginUrl = new URL('/auth/login', request.url);
   const nextPath = `${request.nextUrl.pathname}${request.nextUrl.search}`;
@@ -33,7 +38,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (pathname.startsWith('/api/auth')) {
+  if (pathname.startsWith('/api/auth') || isPublicApiRoute(pathname)) {
     return NextResponse.next();
   }
 

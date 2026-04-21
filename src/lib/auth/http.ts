@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 export type AuthErrorCode =
   | 'INVALID_REQUEST'
   | 'VALIDATION_ERROR'
+  | 'INELIGIBLE'
   | 'CONFLICT'
   | 'INVALID_CREDENTIALS'
   | 'UNAUTHORIZED'
