@@ -81,12 +81,12 @@ export async function GET(request: NextRequest) {
       return loginErrorRedirect(request, 'account_not_found');
     }
 
-    if (student.googleSub && student.googleSub !== googleIdentity.sub) {
+    if (student.googleId && student.googleId !== googleIdentity.sub) {
       return loginErrorRedirect(request, 'google_account_mismatch');
     }
 
-    if (!student.googleSub) {
-      student.googleSub = googleIdentity.sub;
+    if (!student.googleId) {
+      student.googleId = googleIdentity.sub;
       await student.save();
     }
 

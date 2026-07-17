@@ -5,8 +5,7 @@ import { authError } from '@/lib/auth/http';
 import { getSessionUserFromRequest } from '@/lib/auth/session';
 import { finalizeAttemptFromSubmissions } from '@/lib/testing/finalize-service';
 import { TestAttemptModel } from '@/lib/testing/test-attempt-model';
-import { TestResultModel } from '@/lib/testing/test-result-model';
-import type { AttemptModuleContent, AttemptSubmissionPayload } from '@/lib/testing/types';
+import type { AttemptModuleContent, AttemptSubmissionPayload, TestSessionFinalScores } from '@/lib/testing/types';
 import { finalizeAttemptSchema, toNumericAnswerMap } from '@/lib/testing/validators';
 
 export const runtime = 'nodejs';
@@ -15,11 +14,26 @@ type RouteParams = {
   testId: string;
 };
 
-function isDuplicateKeyError(error: unknown): boolean {
-  return typeof error === 'object'
-    && error !== null
-    && 'code' in error
-    && (error as { code?: unknown }).code === 11000;
+type AttemptLookup = {
+  _id: unknown;
+  sessionId?: string;
+  testId?: string;
+  status: string;
+  modules: AttemptModuleContent;
+  completedAt?: Date;
+  moduleResults?: unknown;
+  finalScores?: TestSessionFinalScores;
+  resultLocked?: boolean;
+};
+
+function buildSessionLookup(sessionId: string, studentId: string) {
+  return {
+    studentId,
+    $or: [
+      { sessionId },
+      { testId: sessionId },
+    ],
+  };
 }
 
 function buildSubmissionPayload(input: {
@@ -44,16 +58,18 @@ function buildSubmissionPayload(input: {
 }
 
 function formatResultPayload(result: {
-  testId: string;
-  overallBand: number;
-  completedAt: Date;
-  modules: unknown;
+  sessionId: string;
+  completedAt?: Date;
+  moduleResults: unknown;
+  finalScores: TestSessionFinalScores;
 }) {
   return {
-    testId: result.testId,
-    overallBand: result.overallBand,
-    completedAt: result.completedAt,
-    modules: result.modules,
+    sessionId: result.sessionId,
+    testId: result.sessionId,
+    overallBand: result.finalScores.overallBand,
+    completedAt: result.completedAt ?? null,
+    finalScores: result.finalScores,
+    modules: result.moduleResults,
   };
 }
 
@@ -66,9 +82,9 @@ export async function POST(
     return authError('UNAUTHORIZED', 'Not authenticated.', 401);
   }
 
-  const { testId: rawTestId } = await context.params;
-  const testId = rawTestId?.trim();
-  if (!testId) {
+  const { testId: rawSessionId } = await context.params;
+  const sessionIdFromRoute = rawSessionId?.trim();
+  if (!sessionIdFromRoute) {
     return authError('INVALID_REQUEST', 'Missing testId route parameter.', 400);
   }
 
@@ -87,15 +103,10 @@ export async function POST(
   try {
     await connectToDatabase();
 
-    const existingResult = await TestResultModel.findOne({ testId, studentId: sessionUser.id }).lean();
-    if (existingResult) {
-      return NextResponse.json({
-        alreadyFinalized: true,
-        result: formatResultPayload(existingResult),
-      });
-    }
+    const attempt = await TestAttemptModel.findOne(
+      buildSessionLookup(sessionIdFromRoute, sessionUser.id),
+    ).lean<AttemptLookup>();
 
-    const attempt = await TestAttemptModel.findOne({ testId, studentId: sessionUser.id }).lean();
     if (!attempt) {
       return NextResponse.json(
         {
@@ -104,6 +115,20 @@ export async function POST(
         },
         { status: 404 },
       );
+    }
+
+    const resolvedSessionId = attempt.sessionId ?? attempt.testId ?? sessionIdFromRoute;
+
+    if (attempt.resultLocked && attempt.finalScores && attempt.moduleResults) {
+      return NextResponse.json({
+        alreadyFinalized: true,
+        result: formatResultPayload({
+          sessionId: resolvedSessionId,
+          completedAt: attempt.completedAt,
+          moduleResults: attempt.moduleResults,
+          finalScores: attempt.finalScores,
+        }),
+      });
     }
 
     if (attempt.status !== 'IN_PROGRESS') {
@@ -122,62 +147,68 @@ export async function POST(
       submissions,
     );
 
-    let persistedResult: {
-      testId: string;
-      overallBand: number;
-      completedAt: Date;
-      modules: unknown;
+    const finalScores: TestSessionFinalScores = {
+      listening: finalized.listening.band,
+      reading: finalized.reading.band,
+      writing: finalized.writing.band,
+      speaking: finalized.speaking.band,
+      overallBand: finalized.overallBand,
     };
 
-    try {
-      const createdResult = await TestResultModel.create({
-        testId,
+    const completedAt = new Date();
+
+    const updateResult = await TestAttemptModel.updateOne(
+      {
+        _id: attempt._id,
         studentId: sessionUser.id,
-        attemptId: attempt._id,
-        status: 'COMPLETED',
-        modules: finalized,
-        overallBand: finalized.overallBand,
-        completedAt: new Date(),
-      });
-
-      persistedResult = {
-        testId: createdResult.testId,
-        overallBand: createdResult.overallBand,
-        completedAt: createdResult.completedAt,
-        modules: createdResult.modules,
-      };
-    } catch (error) {
-      if (!isDuplicateKeyError(error)) {
-        throw error;
-      }
-
-      const racedResult = await TestResultModel.findOne({ testId, studentId: sessionUser.id }).lean();
-      if (!racedResult) {
-        throw error;
-      }
-
-      persistedResult = {
-        testId: racedResult.testId,
-        overallBand: racedResult.overallBand,
-        completedAt: racedResult.completedAt,
-        modules: racedResult.modules,
-      };
-    }
-
-    await TestAttemptModel.updateOne(
-      { _id: attempt._id, studentId: sessionUser.id },
+        resultLocked: { $ne: true },
+      },
       {
         $set: {
           status: 'COMPLETED',
-          finalizedAt: persistedResult.completedAt,
+          sessionId: resolvedSessionId,
+          testId: resolvedSessionId,
+          completedAt,
+          finalizedAt: completedAt,
           submissions,
+          moduleResults: finalized,
+          finalScores,
+          resultLocked: true,
         },
       },
     );
 
+    if (updateResult.modifiedCount === 0) {
+      const racedAttempt = await TestAttemptModel.findOne({ _id: attempt._id, studentId: sessionUser.id }).lean<AttemptLookup>();
+      if (racedAttempt?.resultLocked && racedAttempt.finalScores && racedAttempt.moduleResults) {
+        return NextResponse.json({
+          alreadyFinalized: true,
+          result: formatResultPayload({
+            sessionId: racedAttempt.sessionId ?? racedAttempt.testId ?? resolvedSessionId,
+            completedAt: racedAttempt.completedAt,
+            moduleResults: racedAttempt.moduleResults,
+            finalScores: racedAttempt.finalScores,
+          }),
+        });
+      }
+
+      return NextResponse.json(
+        {
+          error: 'CONFLICT',
+          message: 'Test attempt has already been finalized or locked by another request.',
+        },
+        { status: 409 },
+      );
+    }
+
     return NextResponse.json({
       alreadyFinalized: false,
-      result: formatResultPayload(persistedResult),
+      result: formatResultPayload({
+        sessionId: resolvedSessionId,
+        completedAt,
+        moduleResults: finalized,
+        finalScores,
+      }),
     });
   } catch (error) {
     return authError(

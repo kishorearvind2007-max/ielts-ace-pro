@@ -6,6 +6,7 @@ type StudentLike = {
   registerNumber?: unknown;
   email?: unknown;
   fullName?: unknown;
+  googleId?: unknown;
   googleSub?: unknown;
 };
 
@@ -34,11 +35,15 @@ export function toSessionUser(student: StudentLike): SessionUser {
 }
 
 export function toPublicStudent(student: StudentLike): PublicStudent {
+  const hasGoogleLinked =
+    (typeof student.googleId === 'string' && student.googleId.length > 0)
+    || (typeof student.googleSub === 'string' && student.googleSub.length > 0);
+
   return {
     id: resolveId(student),
     registerNumber: typeof student.registerNumber === 'string' ? student.registerNumber : '',
     email: typeof student.email === 'string' ? student.email : '',
     fullName: typeof student.fullName === 'string' ? student.fullName : '',
-    hasGoogleLinked: typeof student.googleSub === 'string' && student.googleSub.length > 0,
+    hasGoogleLinked,
   };
 }

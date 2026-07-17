@@ -223,7 +223,7 @@ export default function ReadingResultPage() {
           <Button variant="outline" onClick={() => router.push('/result')}>
             <BarChart3 className="w-4 h-4 mr-2" /> Report Hub
           </Button>
-          <Button onClick={() => router.push('/')}>
+          <Button onClick={() => router.push('/dashboard')}>
             <Home className="w-4 h-4 mr-2" /> Home
           </Button>
         </motion.div>

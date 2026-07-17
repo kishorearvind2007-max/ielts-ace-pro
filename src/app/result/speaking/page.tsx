@@ -155,7 +155,7 @@ export default function SpeakingResultPage() {
         >
           <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
             <Mic className="w-4 h-4 text-primary" />
-            IELTS Criteria Breakdown
+            Test Craft Criteria Breakdown
           </h2>
 
           {criteriaEntries.length === 0 && (
@@ -295,7 +295,7 @@ export default function SpeakingResultPage() {
           >
             <RotateCcw className="w-4 h-4 mr-2" /> Retake Speaking
           </Button>
-          <Button onClick={() => router.push('/')}>
+          <Button onClick={() => router.push('/dashboard')}>
             <Home className="w-4 h-4 mr-2" /> Home
           </Button>
         </motion.div>

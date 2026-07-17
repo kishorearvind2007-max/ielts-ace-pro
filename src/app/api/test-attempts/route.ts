@@ -5,7 +5,7 @@ import { connectToDatabase } from '@/lib/auth/db';
 import { authError } from '@/lib/auth/http';
 import { getSessionUserFromRequest } from '@/lib/auth/session';
 import type { ListeningSection, ReadingPassage } from '@/lib/ielts-types';
-import { generateTestId } from '@/lib/testing/id';
+import { generateSessionId } from '@/lib/testing/id';
 import { TestAttemptModel } from '@/lib/testing/test-attempt-model';
 import type { AttemptModuleContent } from '@/lib/testing/types';
 import { createTestAttemptSchema } from '@/lib/testing/validators';
@@ -57,8 +57,11 @@ async function createAttemptWithUniqueTestId(
 
   for (let index = 0; index < 5; index += 1) {
     try {
+      const generatedSessionId = generateSessionId();
       return await TestAttemptModel.create({
-        testId: generateTestId(),
+        sessionId: generatedSessionId,
+        // Legacy alias preserved for backward-compatible reads.
+        testId: generatedSessionId,
         studentId,
         difficulty,
         status: 'IN_PROGRESS',
@@ -101,8 +104,11 @@ export async function POST(request: NextRequest) {
     const modules = cloneModuleContent();
     const createdAttempt = await createAttemptWithUniqueTestId(sessionUser.id, difficulty, modules);
 
+    const responseSessionId = createdAttempt.sessionId ?? createdAttempt.testId;
+
     return NextResponse.json({
-      testId: createdAttempt.testId,
+      sessionId: responseSessionId,
+      testId: responseSessionId,
       status: createdAttempt.status,
       difficulty: createdAttempt.difficulty,
       createdAt: createdAttempt.createdAt,

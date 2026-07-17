@@ -200,7 +200,7 @@ export function HomeScreen() {
             IELTS Practice Test
           </div>
           <h1 className="text-5xl font-heading font-bold mb-4">
-            <span className="text-gradient-gold">IELTS</span>{' '}
+            <span className="text-gradient-gold">Test Craft</span>{' '}
             <span className="text-foreground">Academic Test</span>
           </h1>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">

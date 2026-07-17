@@ -14,9 +14,10 @@ jest.mock('@/lib/auth/student-model', () => ({
   },
 }));
 
-jest.mock('@/lib/testing/test-result-model', () => ({
-  TestResultModel: {
+jest.mock('@/lib/testing/test-attempt-model', () => ({
+  TestAttemptModel: {
     findOne: jest.fn(),
+    updateOne: jest.fn(),
   },
 }));
 
@@ -31,7 +32,7 @@ import { connectToDatabase } from '@/lib/auth/db';
 import { getSessionUserFromRequest } from '@/lib/auth/session';
 import { StudentModel } from '@/lib/auth/student-model';
 import { CertificateModel } from '@/lib/testing/certificate-model';
-import { TestResultModel } from '@/lib/testing/test-result-model';
+import { TestAttemptModel } from '@/lib/testing/test-attempt-model';
 
 function mockLeanQuery<T>(value: T) {
   return {
@@ -47,8 +48,9 @@ describe('certificate issue route', () => {
     findById: jest.Mock;
   };
 
-  const mockedResultModel = TestResultModel as unknown as {
+  const mockedAttemptModel = TestAttemptModel as unknown as {
     findOne: jest.Mock;
+    updateOne: jest.Mock;
   };
 
   const mockedCertificateModel = CertificateModel as unknown as {
@@ -65,6 +67,7 @@ describe('certificate issue route', () => {
       email: 'student@example.com',
       fullName: 'Student One',
     });
+    mockedAttemptModel.updateOne.mockResolvedValue({ acknowledged: true, matchedCount: 1, modifiedCount: 1 });
   });
 
   async function callRoute(body: unknown) {
@@ -79,25 +82,39 @@ describe('certificate issue route', () => {
   }
 
   it('returns existing certificate idempotently when already issued', async () => {
-    mockedCertificateModel.findOne.mockReturnValueOnce(mockLeanQuery({
-      _id: { toString: () => 'cert-doc-1' },
-      certificateId: 'CERT-20260419-ABCDEF01',
-      testId: 'TST-20260419-ABCDEF01',
-      fullName: 'Student One',
-      registerNumber: '24UCS046',
-      moduleBands: {
+    mockedAttemptModel.findOne.mockReturnValueOnce(mockLeanQuery({
+      _id: 'attempt-doc-1',
+      sessionId: 'TST-20260419-ABCDEF01',
+      status: 'COMPLETED',
+      resultLocked: true,
+      finalScores: {
         listening: 7,
         reading: 7,
         writing: 7,
         speaking: 7,
+        overallBand: 7,
       },
-      overallBand: 7,
+    }));
+
+    mockedCertificateModel.findOne.mockReturnValueOnce(mockLeanQuery({
+      _id: { toString: () => 'cert-doc-1' },
+      certificateId: 'CERT-20260419-ABCDEF01',
+      sessionId: 'TST-20260419-ABCDEF01',
+      fullName: 'Student One',
+      registerNumber: '24UCS046',
+      scores: {
+        listening: 7,
+        reading: 7,
+        writing: 7,
+        speaking: 7,
+        overallBand: 7,
+      },
       status: 'ISSUED',
       issuedAt: new Date('2026-04-19T11:00:00.000Z'),
       verificationUrl: 'https://example.test/api/certificates/verify/CERT-20260419-ABCDEF01',
     }));
 
-    const response = await callRoute({ testId: 'TST-20260419-ABCDEF01' });
+    const response = await callRoute({ sessionId: 'TST-20260419-ABCDEF01' });
     const json = await response.json();
 
     expect(response.status).toBe(200);
@@ -109,21 +126,23 @@ describe('certificate issue route', () => {
   });
 
   it('rejects issuance when completed result is below eligibility threshold', async () => {
-    mockedCertificateModel.findOne.mockReturnValueOnce(mockLeanQuery(null));
-
-    mockedResultModel.findOne.mockReturnValueOnce(mockLeanQuery({
-      _id: 'result-doc-ineligible',
-      attemptId: 'attempt-doc-ineligible',
-      overallBand: 2,
-      modules: {
-        listening: { band: 1.5 },
-        reading: { band: 2.5 },
-        writing: { band: 2.5 },
-        speaking: { band: 2.5 },
+    mockedAttemptModel.findOne.mockReturnValueOnce(mockLeanQuery({
+      _id: 'attempt-doc-ineligible',
+      sessionId: 'TST-20260419-TOOLOW01',
+      status: 'COMPLETED',
+      resultLocked: true,
+      finalScores: {
+        listening: 1.5,
+        reading: 2.5,
+        writing: 2.5,
+        speaking: 2.5,
+        overallBand: 2,
       },
     }));
 
-    const response = await callRoute({ testId: 'TST-20260419-TOOLOW01' });
+    mockedCertificateModel.findOne.mockReturnValueOnce(mockLeanQuery(null));
+
+    const response = await callRoute({ sessionId: 'TST-20260419-TOOLOW01' });
     const json = await response.json();
 
     expect(response.status).toBe(400);
@@ -133,19 +152,21 @@ describe('certificate issue route', () => {
   });
 
   it('issues a new certificate from completed backend result', async () => {
-    mockedCertificateModel.findOne.mockReturnValueOnce(mockLeanQuery(null));
-
-    mockedResultModel.findOne.mockReturnValueOnce(mockLeanQuery({
-      _id: 'result-doc-1',
-      attemptId: 'attempt-doc-1',
-      overallBand: 6.5,
-      modules: {
-        listening: { band: 6.5 },
-        reading: { band: 6.5 },
-        writing: { band: 6.5 },
-        speaking: { band: 6.5 },
+    mockedAttemptModel.findOne.mockReturnValueOnce(mockLeanQuery({
+      _id: 'attempt-doc-1',
+      sessionId: 'TST-20260419-ABCDEF01',
+      status: 'COMPLETED',
+      resultLocked: true,
+      finalScores: {
+        listening: 6.5,
+        reading: 6.5,
+        writing: 6.5,
+        speaking: 6.5,
+        overallBand: 6.5,
       },
     }));
+
+    mockedCertificateModel.findOne.mockReturnValueOnce(mockLeanQuery(null));
 
     mockedStudentModel.findById.mockReturnValueOnce(mockLeanQuery({
       fullName: 'Student One',
@@ -155,22 +176,22 @@ describe('certificate issue route', () => {
     mockedCertificateModel.create.mockResolvedValue({
       _id: { toString: () => 'cert-doc-2' },
       certificateId: 'CERT-20260419-NEWCERT01',
-      testId: 'TST-20260419-ABCDEF01',
+      sessionId: 'TST-20260419-ABCDEF01',
       fullName: 'Student One',
       registerNumber: '24UCS046',
-      moduleBands: {
+      scores: {
         listening: 6.5,
         reading: 6.5,
         writing: 6.5,
         speaking: 6.5,
+        overallBand: 6.5,
       },
-      overallBand: 6.5,
       status: 'ISSUED',
       issuedAt: new Date('2026-04-19T11:05:00.000Z'),
       verificationUrl: 'https://example.test/api/certificates/verify/CERT-20260419-NEWCERT01',
     });
 
-    const response = await callRoute({ testId: 'TST-20260419-ABCDEF01' });
+    const response = await callRoute({ sessionId: 'TST-20260419-ABCDEF01' });
     const json = await response.json();
 
     expect(response.status).toBe(200);
@@ -180,5 +201,6 @@ describe('certificate issue route', () => {
     expect(json.previewUrl).toBe('https://example.test/api/certificates/preview/CERT-20260419-NEWCERT01');
     expect(json.downloadUrl).toBe('https://example.test/api/certificates/download/CERT-20260419-NEWCERT01');
     expect(mockedCertificateModel.create).toHaveBeenCalledTimes(1);
+    expect(mockedAttemptModel.updateOne).toHaveBeenCalledTimes(1);
   });
 });

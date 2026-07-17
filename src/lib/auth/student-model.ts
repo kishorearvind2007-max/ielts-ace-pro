@@ -6,7 +6,7 @@ export interface Student {
   email: string;
   fullName: string;
   passwordHash: string;
-  googleSub?: string;
+  googleId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -39,7 +39,7 @@ const studentSchema = new Schema<Student>(
       type: String,
       required: true,
     },
-    googleSub: {
+    googleId: {
       type: String,
       default: '',
       index: true,
@@ -57,7 +57,22 @@ studentSchema.pre('validate', function normalizeIdentityFields() {
   if (this.email) {
     this.email = normalizeEmail(this.email);
   }
+
+  const legacyGoogleSub = (this as Student & { googleSub?: string }).googleSub;
+  if (!this.googleId && typeof legacyGoogleSub === 'string' && legacyGoogleSub.length > 0) {
+    this.googleId = legacyGoogleSub;
+  }
 });
+
+studentSchema.virtual('googleSub')
+  .get(function getLegacyGoogleSubAlias(this: Student) {
+    return this.googleId ?? '';
+  })
+  .set(function setLegacyGoogleSubAlias(this: Student, value: unknown) {
+    if (typeof value === 'string') {
+      this.googleId = value;
+    }
+  });
 
 const StudentModel = (mongoose.models.Student as Model<Student> | undefined) ?? mongoose.model<Student>('Student', studentSchema);
 

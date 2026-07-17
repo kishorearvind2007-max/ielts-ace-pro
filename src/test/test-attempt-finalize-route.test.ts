@@ -19,18 +19,10 @@ jest.mock('@/lib/testing/test-attempt-model', () => ({
   },
 }));
 
-jest.mock('@/lib/testing/test-result-model', () => ({
-  TestResultModel: {
-    findOne: jest.fn(),
-    create: jest.fn(),
-  },
-}));
-
 import { connectToDatabase } from '@/lib/auth/db';
 import { getSessionUserFromRequest } from '@/lib/auth/session';
 import { finalizeAttemptFromSubmissions } from '@/lib/testing/finalize-service';
 import { TestAttemptModel } from '@/lib/testing/test-attempt-model';
-import { TestResultModel } from '@/lib/testing/test-result-model';
 
 function mockLeanQuery<T>(value: T) {
   return {
@@ -46,11 +38,6 @@ describe('test attempt finalize route', () => {
   const mockedAttemptModel = TestAttemptModel as unknown as {
     findOne: jest.Mock;
     updateOne: jest.Mock;
-  };
-
-  const mockedResultModel = TestResultModel as unknown as {
-    findOne: jest.Mock;
-    create: jest.Mock;
   };
 
   const payload = {
@@ -96,11 +83,10 @@ describe('test attempt finalize route', () => {
     });
   }
 
-  it('finalizes an in-progress attempt and persists immutable result', async () => {
-    mockedResultModel.findOne.mockReturnValueOnce(mockLeanQuery(null));
+  it('finalizes an in-progress attempt and locks session scores', async () => {
     mockedAttemptModel.findOne.mockReturnValueOnce(mockLeanQuery({
       _id: 'attempt-1',
-      testId: 'TST-20260419-ABCDEF01',
+      sessionId: 'TST-20260419-ABCDEF01',
       status: 'IN_PROGRESS',
       modules: {
         listeningSections: [],
@@ -132,18 +118,6 @@ describe('test attempt finalize route', () => {
       overallBand: 6,
     });
 
-    mockedResultModel.create.mockResolvedValue({
-      testId: 'TST-20260419-ABCDEF01',
-      overallBand: 6,
-      completedAt: new Date('2026-04-19T10:00:00.000Z'),
-      modules: {
-        listening: { band: 6 },
-        reading: { band: 6 },
-        writing: { band: 6 },
-        speaking: { band: 6 },
-      },
-    });
-
     mockedAttemptModel.updateOne.mockResolvedValue({ acknowledged: true, matchedCount: 1, modifiedCount: 1 });
 
     const response = await callRoute();
@@ -151,17 +125,33 @@ describe('test attempt finalize route', () => {
 
     expect(response.status).toBe(200);
     expect(json.alreadyFinalized).toBe(false);
+    expect(json.result.sessionId).toBe('TST-20260419-ABCDEF01');
     expect(json.result.overallBand).toBe(6);
-    expect(mockedResultModel.create).toHaveBeenCalledTimes(1);
+    expect(json.result.finalScores).toEqual({
+      listening: 6,
+      reading: 6,
+      writing: 6,
+      speaking: 6,
+      overallBand: 6,
+    });
     expect(mockedAttemptModel.updateOne).toHaveBeenCalledTimes(1);
   });
 
-  it('returns idempotent response when a result already exists', async () => {
-    mockedResultModel.findOne.mockReturnValueOnce(mockLeanQuery({
-      testId: 'TST-20260419-ABCDEF01',
-      overallBand: 7,
+  it('returns idempotent response when session is already locked', async () => {
+    mockedAttemptModel.findOne.mockReturnValueOnce(mockLeanQuery({
+      _id: 'attempt-locked',
+      sessionId: 'TST-20260419-ABCDEF01',
+      status: 'COMPLETED',
+      resultLocked: true,
+      finalScores: {
+        listening: 7,
+        reading: 7,
+        writing: 7,
+        speaking: 7,
+        overallBand: 7,
+      },
       completedAt: new Date('2026-04-19T10:30:00.000Z'),
-      modules: {
+      moduleResults: {
         listening: { band: 7 },
         reading: { band: 7 },
         writing: { band: 7 },
@@ -176,6 +166,6 @@ describe('test attempt finalize route', () => {
     expect(json.alreadyFinalized).toBe(true);
     expect(json.result.overallBand).toBe(7);
     expect(mockedFinalizeAttemptFromSubmissions).not.toHaveBeenCalled();
-    expect(mockedResultModel.create).not.toHaveBeenCalled();
+    expect(mockedAttemptModel.updateOne).not.toHaveBeenCalled();
   });
 });

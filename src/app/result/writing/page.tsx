@@ -367,10 +367,10 @@ export default function WritingResultPage() {
             try {
                 setData(JSON.parse(stored));
             } catch {
-                router.push("/");
+                router.push("/dashboard");
             }
         } else {
-            router.push("/");
+            router.push("/dashboard");
         }
     }, [router]);
 
@@ -395,7 +395,7 @@ export default function WritingResultPage() {
                         <Award className="w-8 h-8 text-primary" />
                     </div>
                     <h1 className="text-3xl font-bold text-foreground mb-2">Writing Results</h1>
-                    <p className="text-muted-foreground text-sm">IELTS Academic Writing Evaluation</p>
+                    <p className="text-muted-foreground text-sm">Test Craft Academic Writing Evaluation</p>
                 </motion.div>
 
                 {/* Overall Band Score */}
@@ -478,7 +478,7 @@ export default function WritingResultPage() {
                 >
                     <Button
                         variant="outline"
-                        onClick={() => router.push("/")}
+                        onClick={() => router.push("/dashboard")}
                         className="flex-1"
                     >
                         <ArrowLeft className="w-4 h-4 mr-2" />
@@ -499,7 +499,7 @@ export default function WritingResultPage() {
                             } catch {
                                 // Ignore errors
                             }
-                            router.push("/");
+                            router.push("/dashboard");
                         }}
                         className="flex-1"
                     >

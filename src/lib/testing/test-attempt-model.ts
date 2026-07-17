@@ -1,5 +1,12 @@
 import mongoose, { Schema, type HydratedDocument, type Model } from 'mongoose';
-import type { AttemptModuleContent, AttemptStatus, SpeakingTranscripts, WritingResponses } from '@/lib/testing/types';
+import type {
+  AttemptModuleContent,
+  AttemptStatus,
+  FinalizedAttemptResult,
+  SpeakingTranscripts,
+  TestSessionFinalScores,
+  WritingResponses,
+} from '@/lib/testing/types';
 
 type AttemptSubmissions = {
   listeningAnswers: Record<number, string>;
@@ -9,12 +16,18 @@ type AttemptSubmissions = {
 };
 
 export interface TestAttempt {
-  testId: string;
+  sessionId: string;
+  testId?: string;
   studentId: mongoose.Types.ObjectId;
   difficulty: string;
   status: AttemptStatus;
   modules: AttemptModuleContent;
   submissions: AttemptSubmissions;
+  moduleResults?: FinalizedAttemptResult;
+  finalScores?: TestSessionFinalScores;
+  resultLocked: boolean;
+  certificateIssued: boolean;
+  completedAt?: Date;
   finalizedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -40,11 +53,16 @@ function defaultSubmissions(): AttemptSubmissions {
 
 const testAttemptSchema = new Schema<TestAttempt>(
   {
-    testId: {
+    sessionId: {
       type: String,
       required: true,
       unique: true,
       immutable: true,
+      trim: true,
+      index: true,
+    },
+    testId: {
+      type: String,
       trim: true,
       index: true,
     },
@@ -76,6 +94,29 @@ const testAttemptSchema = new Schema<TestAttempt>(
       required: true,
       default: defaultSubmissions,
     },
+    moduleResults: {
+      type: Schema.Types.Mixed,
+      default: null,
+    },
+    finalScores: {
+      type: Schema.Types.Mixed,
+      default: null,
+    },
+    resultLocked: {
+      type: Boolean,
+      required: true,
+      default: false,
+      index: true,
+    },
+    certificateIssued: {
+      type: Boolean,
+      required: true,
+      default: false,
+      index: true,
+    },
+    completedAt: {
+      type: Date,
+    },
     finalizedAt: {
       type: Date,
     },
@@ -86,6 +127,7 @@ const testAttemptSchema = new Schema<TestAttempt>(
 );
 
 testAttemptSchema.index({ studentId: 1, status: 1 });
+testAttemptSchema.index({ studentId: 1, resultLocked: 1, completedAt: -1 });
 testAttemptSchema.index({ studentId: 1, createdAt: -1 });
 
 const TestAttemptModel =

@@ -43,7 +43,10 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
-  const nextPath = useMemo(() => sanitizeNextPath(searchParams.get('next')), [searchParams]);
+  const nextPath = useMemo(() => {
+    const requestedPath = sanitizeNextPath(searchParams.get('next'));
+    return requestedPath === '/' ? '/dashboard' : requestedPath;
+  }, [searchParams]);
   const googleHref = useMemo(
     () => `/api/auth/google/start?next=${encodeURIComponent(nextPath)}`,
     [nextPath],
@@ -176,7 +179,7 @@ export default function LoginPage() {
       <div className="rounded-2xl border border-primary/15 bg-card/70 p-8 shadow-card">
         <h2 className="mb-3 text-2xl font-heading font-bold text-foreground">Before You Start</h2>
         <p className="mb-4 text-sm text-muted-foreground">
-          Your student account keeps IELTS progress private and enables secure access to all test modules.
+          Your student account keeps Test Craft progress private and enables secure access to all test modules.
         </p>
         <ul className="space-y-3 text-sm text-foreground">
           <li>• Use your official register number when creating your account.</li>

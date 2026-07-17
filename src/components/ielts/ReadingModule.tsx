@@ -152,7 +152,7 @@ export function ReadingModule() {
         <div className="flex-1 flex items-center justify-center">
           <div className="flex items-center gap-3 text-sm text-foreground">
             <Loader2 className="w-4 h-4 animate-spin" />
-            Generating IELTS reading passages...
+            Generating Test Craft reading passages...
           </div>
         </div>
       </div>

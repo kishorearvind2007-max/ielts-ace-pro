@@ -37,7 +37,7 @@ export default function ListeningResultPage() {
   useEffect(() => {
     const raw = localStorage.getItem('listeningResult');
     if (!raw) {
-      router.push('/');
+      router.push('/dashboard');
       return;
     }
 
@@ -48,7 +48,7 @@ export default function ListeningResultPage() {
       }
       setData(parsed);
     } catch {
-      router.push('/');
+      router.push('/dashboard');
     }
   }, [router]);
 
@@ -86,7 +86,7 @@ export default function ListeningResultPage() {
             <h1 className="text-3xl font-heading font-bold text-foreground">Listening Report</h1>
             <p className="text-sm text-muted-foreground">Detailed answer validation review</p>
           </div>
-          <Button variant="secondary" onClick={() => router.push('/')}>
+          <Button variant="secondary" onClick={() => router.push('/dashboard')}>
             <ArrowLeft className="w-4 h-4 mr-2" /> Back Home
           </Button>
         </motion.div>
@@ -207,13 +207,13 @@ export default function ListeningResultPage() {
           transition={{ delay: 0.2 }}
           className="flex flex-wrap justify-center gap-3"
         >
-          <Button variant="secondary" onClick={() => router.push('/')}>
+          <Button variant="secondary" onClick={() => router.push('/dashboard')}>
             <Home className="w-4 h-4 mr-2" /> Home
           </Button>
           <Button
             onClick={() => {
               localStorage.removeItem('listeningResult');
-              router.push('/');
+              router.push('/dashboard');
             }}
           >
             <RotateCcw className="w-4 h-4 mr-2" /> Retake Listening

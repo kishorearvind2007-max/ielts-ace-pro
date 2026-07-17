@@ -48,7 +48,10 @@ export default function RegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
-  const nextPath = useMemo(() => sanitizeNextPath(searchParams.get('next')), [searchParams]);
+  const nextPath = useMemo(() => {
+    const requestedPath = sanitizeNextPath(searchParams.get('next'));
+    return requestedPath === '/' ? '/dashboard' : requestedPath;
+  }, [searchParams]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

@@ -19,6 +19,10 @@ function isAuthRoute(pathname: string): boolean {
   return pathname === '/auth/login' || pathname === '/auth/register';
 }
 
+function isLandingRoute(pathname: string): boolean {
+  return pathname === '/';
+}
+
 function isPublicApiRoute(pathname: string): boolean {
   return pathname.startsWith('/api/certificates/verify/')
     || pathname === '/api/certificates/sample';
@@ -46,7 +50,7 @@ export async function middleware(request: NextRequest) {
   const sessionUser = token ? await verifySessionToken(token) : null;
 
   if (!sessionUser) {
-    if (isAuthRoute(pathname)) {
+    if (isAuthRoute(pathname) || isLandingRoute(pathname)) {
       return NextResponse.next();
     }
 
@@ -54,8 +58,13 @@ export async function middleware(request: NextRequest) {
   }
 
   if (isAuthRoute(pathname)) {
-    const nextPath = sanitizeNextPath(request.nextUrl.searchParams.get('next'));
+    const requestedNextPath = sanitizeNextPath(request.nextUrl.searchParams.get('next'));
+    const nextPath = requestedNextPath === '/' ? '/dashboard' : requestedNextPath;
     return NextResponse.redirect(new URL(nextPath, request.url));
+  }
+
+  if (isLandingRoute(pathname)) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
   return NextResponse.next();

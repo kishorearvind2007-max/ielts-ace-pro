@@ -80,6 +80,14 @@ export type FinalizedAttemptResult = {
   overallBand: number;
 };
 
+export type TestSessionFinalScores = {
+  listening: number;
+  reading: number;
+  writing: number;
+  speaking: number;
+  overallBand: number;
+};
+
 export type ModuleBandBreakdown = {
   listening: number;
   reading: number;

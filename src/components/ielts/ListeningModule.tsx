@@ -454,7 +454,7 @@ export function ListeningModule() {
         {loadingSection && !generatedSections[currentSection] && (
           <div className="mb-6 p-4 rounded-xl bg-card border border-border flex items-center gap-3 text-sm text-foreground">
             <Loader2 className="w-4 h-4 animate-spin" />
-            Generating IELTS listening section...
+            Generating Test Craft listening section...
           </div>
         )}
 

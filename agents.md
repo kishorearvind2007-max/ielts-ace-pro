@@ -1,11 +1,11 @@
 
-# IELTS Ace Pro - AI Agents Documentation
+# Test Craft - AI Agents Documentation
 
-This document describes all AI agent integrations and their roles in the IELTS Ace Pro application.
+This document describes all AI agent integrations and their roles in the Test Craft application.
 
 ## Overview
 
-IELTS Ace Pro uses multiple AI service providers to deliver dynamic content generation and automated evaluation:
+Test Craft uses multiple AI service providers to deliver dynamic content generation and automated evaluation:
 
 - **NVIDIA AI** - Question generation for Writing, Reading, and Listening modules, plus Writing evaluation
 - **Anthropic Claude** - Response evaluation for Speaking module

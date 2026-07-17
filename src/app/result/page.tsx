@@ -31,7 +31,7 @@ const moduleCards: ModuleCard[] = [
   {
     module: 'writing',
     title: 'Writing Report',
-    description: 'Task-level IELTS criteria feedback with model rewrites and tips.',
+    description: 'Task-level Test Craft criteria feedback with model rewrites and tips.',
     icon: FileText,
   },
   {
@@ -123,7 +123,7 @@ export default function ResultHubPage() {
           <Button variant="secondary" onClick={() => router.push('/results')}>
             <ArrowLeft className="w-4 h-4 mr-2" /> Results
           </Button>
-          <Button onClick={() => router.push('/')}>
+          <Button onClick={() => router.push('/dashboard')}>
             <Home className="w-4 h-4 mr-2" /> Home
           </Button>
         </motion.div>

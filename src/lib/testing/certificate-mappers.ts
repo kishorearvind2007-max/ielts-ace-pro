@@ -1,4 +1,5 @@
 import type { Certificate } from '@/lib/testing/certificate-model';
+import type { TestSessionFinalScores } from '@/lib/testing/types';
 
 type CertificateLike = Partial<Certificate> & {
   _id?: { toString?: () => string };
@@ -18,19 +19,49 @@ function resolveStringId(value: CertificateLike): string {
 }
 
 export function toPublicCertificate(certificate: CertificateLike) {
+  const fallbackScoresFromLegacy = (): TestSessionFinalScores => {
+    const legacyBands = (certificate as CertificateLike & {
+      moduleBands?: Partial<TestSessionFinalScores>;
+      overallBand?: unknown;
+    }).moduleBands ?? {};
+
+    const normalizeBand = (value: unknown) => {
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        return 0;
+      }
+
+      return Math.max(0, Math.min(9, value));
+    };
+
+    const legacyOverall = (certificate as CertificateLike & { overallBand?: unknown }).overallBand;
+
+    return {
+      listening: normalizeBand(legacyBands.listening),
+      reading: normalizeBand(legacyBands.reading),
+      writing: normalizeBand(legacyBands.writing),
+      speaking: normalizeBand(legacyBands.speaking),
+      overallBand: normalizeBand(legacyOverall),
+    };
+  };
+
+  const resolvedScores = certificate.scores ?? fallbackScoresFromLegacy();
+  const resolvedSessionId = certificate.sessionId ?? certificate.testId ?? '';
+
   return {
     id: resolveStringId(certificate),
     certificateId: certificate.certificateId ?? '',
-    testId: certificate.testId ?? '',
+    sessionId: resolvedSessionId,
+    testId: resolvedSessionId,
     fullName: certificate.fullName ?? '',
     registerNumber: certificate.registerNumber ?? '',
-    moduleBands: certificate.moduleBands ?? {
-      listening: 0,
-      reading: 0,
-      writing: 0,
-      speaking: 0,
+    scores: resolvedScores,
+    moduleBands: {
+      listening: resolvedScores.listening,
+      reading: resolvedScores.reading,
+      writing: resolvedScores.writing,
+      speaking: resolvedScores.speaking,
     },
-    overallBand: certificate.overallBand ?? 0,
+    overallBand: resolvedScores.overallBand,
     status: certificate.status ?? 'ISSUED',
     issuedAt: certificate.issuedAt ?? null,
     verificationUrl: certificate.verificationUrl ?? '',

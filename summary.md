@@ -1,4 +1,4 @@
-# IELTS Ace Pro - Project Summary
+# Test Craft - Project Summary
 
 An AI-powered IELTS Academic test preparation platform built with Next.js 15 and TypeScript. The application delivers a complete mock test experience across all four IELTS modules with dynamic question generation and automated AI evaluation.
 
@@ -6,7 +6,7 @@ An AI-powered IELTS Academic test preparation platform built with Next.js 15 and
 
 ## 🎯 Project Overview
 
-**Name:** IELTS Ace Pro
+**Name:** Test Craft
 **Type:** Web Application (Next.js)
 **Purpose:** IELTS Academic test practice with automated scoring
 **Target Users:** Students preparing for IELTS Academic exam

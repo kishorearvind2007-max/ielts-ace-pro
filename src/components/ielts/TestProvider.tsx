@@ -111,13 +111,13 @@ export function TestProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_PHASE', phase: 'home' });
     dispatch({ type: 'SET_MODULE', module: null });
     dispatch({ type: 'SET_TIMER_RUNNING', running: false });
-    router.push('/');
+    router.push('/dashboard');
   }, [router]);
 
   const goHome = useCallback(() => {
     dispatch({ type: 'SET_PHASE', phase: 'home' });
     dispatch({ type: 'SET_MODULE', module: null });
-    router.push('/');
+    router.push('/dashboard');
   }, [router]);
 
   const showResults = useCallback(() => {

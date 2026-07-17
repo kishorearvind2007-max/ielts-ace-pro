@@ -15,6 +15,10 @@ export function generateTestId(now = new Date()): string {
   return `TST-${buildDateStamp(now)}-${randomToken(4)}`;
 }
 
+export function generateSessionId(now = new Date()): string {
+  return generateTestId(now);
+}
+
 export function generateCertificateId(now = new Date()): string {
   return `CERT-${buildDateStamp(now)}-${randomToken(4)}`;
 }

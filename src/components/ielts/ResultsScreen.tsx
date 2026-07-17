@@ -285,7 +285,7 @@ export function ResultsScreen() {
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">
           <Award className="w-16 h-16 text-primary mx-auto mb-4" />
           <h1 className="text-4xl font-heading font-bold text-foreground mb-2">Test Results</h1>
-          <p className="text-muted-foreground">IELTS Academic Practice Test</p>
+          <p className="text-muted-foreground">Test Craft Academic Practice Test</p>
         </motion.div>
 
         {/* Overall Band */}
