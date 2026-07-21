@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { connectToDatabase } from '@/lib/auth/db';
-import { DEMO_USER, isDemoCredentialInput } from '@/lib/auth/demo-user';
+import { DEMO_USER, DEMO_USER_MODULE_BANDS, isDemoCredentialInput } from '@/lib/auth/demo-user';
 import { authError } from '@/lib/auth/http';
 import { hashPassword, verifyPassword } from '@/lib/auth/password';
 import { attachSessionCookie } from '@/lib/auth/session';
@@ -9,6 +9,9 @@ import { toPublicStudent, toSessionUser } from '@/lib/auth/student-mappers';
 import { StudentModel } from '@/lib/auth/student-model';
 import { normalizeEmail, normalizeRegisterNumber } from '@/lib/auth/types';
 import { loginSchema } from '@/lib/auth/validators';
+import { generateSessionId } from '@/lib/testing/id';
+import { TestAttemptModel } from '@/lib/testing/test-attempt-model';
+import type { FinalizedAttemptResult } from '@/lib/testing/types';
 
 export const runtime = 'nodejs';
 
@@ -52,6 +55,106 @@ async function ensureDemoStudent() {
   });
 }
 
+async function ensureDemoTestAttempt(studentId: string) {
+  // Check if a completed test already exists
+  const existingTest = await TestAttemptModel.findOne({
+    studentId,
+    status: 'COMPLETED',
+    resultLocked: true,
+  });
+
+  if (existingTest) {
+    return existingTest;
+  }
+
+  // Create a finalized test attempt with 7.0 band scores
+  const finalScores: FinalizedAttemptResult = {
+    listening: {
+      band: DEMO_USER_MODULE_BANDS.listening,
+      rawScore: 35,
+      totalQuestions: 40,
+      listeningValidation: {
+        totalQuestions: 40,
+        rawScore: 35,
+        percentage: 87.5,
+        sections: [],
+      },
+    },
+    reading: {
+      band: DEMO_USER_MODULE_BANDS.reading,
+      rawScore: 35,
+      totalQuestions: 40,
+      percentage: 87.5,
+      detailedResults: {
+        rawScore: 35,
+        band: DEMO_USER_MODULE_BANDS.reading,
+        totalQuestions: 40,
+        percentage: 87.5,
+        questionTypeBreakdown: {},
+        passageResults: [],
+        timing: {
+          totalTime: 3600,
+          avgTimePerQuestion: 90,
+          timeRemaining: 0,
+        },
+      },
+    },
+    writing: {
+      band: DEMO_USER_MODULE_BANDS.writing,
+      criteriaScores: {
+        taskAchievement: { band: 7, feedback: 'Strong task completion with clear arguments.' },
+        coherenceCohesion: { band: 7, feedback: 'Well-organized with effective linking.' },
+        lexicalResource: { band: 7, feedback: 'Good vocabulary range and accuracy.' },
+        grammaticalRange: { band: 7, feedback: 'Wide range of structures with good control.' },
+      },
+      strengths: ['Clear arguments', 'Good organization', 'Strong vocabulary'],
+      improvements: ['Could add more complex sentences', 'Expand examples further'],
+      examinerComment: 'Demo test with Band 7.0 performance across all criteria.',
+      taskWordCounts: {
+        task1: 165,
+        task2: 280,
+      },
+    },
+    speaking: {
+      band: DEMO_USER_MODULE_BANDS.speaking,
+      criteriaScores: {
+        fluencyCohesion: { band: 7, feedback: 'Speaks fluently with minimal hesitation.' },
+        lexicalResource: { band: 7, feedback: 'Good vocabulary with some flexibility.' },
+        grammaticalRange: { band: 7, feedback: 'Uses a range of structures accurately.' },
+        pronunciation: { band: 7, feedback: 'Clear pronunciation with good intonation.' },
+      },
+      strengths: ['Natural fluency', 'Clear pronunciation', 'Good vocabulary range'],
+      improvements: ['Could use more idiomatic expressions', 'Vary sentence structures more'],
+      examinerComment: 'Demo test with Band 7.0 performance across all criteria.',
+      transcriptWordCount: 850,
+    },
+    overallBand: 7.0,
+  };
+
+  return TestAttemptModel.create({
+    sessionId: generateSessionId(),
+    studentId,
+    difficulty: 'Band 7',
+    status: 'COMPLETED',
+    modules: {
+      listeningSections: [],
+      readingPassages: [],
+      writingTasks: [],
+      speakingParts: [],
+    },
+    submissions: {
+      listeningAnswers: {},
+      readingAnswers: {},
+      writingResponses: { task1: 'Demo response', task2: 'Demo response' },
+      speakingTranscripts: { part1: 'Demo transcript', part2: 'Demo transcript', part3: 'Demo transcript' },
+    },
+    finalScores,
+    resultLocked: true,
+    certificateIssued: false,
+    completedAt: new Date(),
+  });
+}
+
 export async function POST(request: Request) {
   let body: unknown;
   try {
@@ -77,6 +180,7 @@ export async function POST(request: Request) {
     const registerNumber = normalizeRegisterNumber(input.registerNumber);
     if (isDemoCredentialInput(registerNumber, input.password)) {
       const demoStudent = await ensureDemoStudent();
+      await ensureDemoTestAttempt(demoStudent._id.toString());
 
       const response = NextResponse.json({
         user: toPublicStudent(demoStudent),

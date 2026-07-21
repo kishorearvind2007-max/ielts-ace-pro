@@ -9,10 +9,10 @@ export const DEMO_USER = {
 } as const;
 
 export const DEMO_USER_MODULE_BANDS: Record<TestModule, number> = {
-  listening: 6,
-  reading: 6,
-  writing: 6,
-  speaking: 6,
+  listening: 7,
+  reading: 7,
+  writing: 7,
+  speaking: 7,
 };
 
 export function isDemoEnabled(): boolean {
