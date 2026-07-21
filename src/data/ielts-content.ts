@@ -290,6 +290,7 @@ export const writingContent: WritingTask[] = [
     prompt: 'The line graph below shows the percentage of households with internet access in four different countries between 2005 and 2020. Summarise the information by selecting and reporting the main features, and make comparisons where relevant. Write at least 150 words.',
     minWords: 150,
     recommendedMinutes: 20,
+    chartType: 'line',
     chartData: {
       labels: ['2005', '2008', '2011', '2014', '2017', '2020'],
       datasets: [

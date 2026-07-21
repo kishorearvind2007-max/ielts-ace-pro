@@ -16,6 +16,10 @@ export function useAntiCheat({ onAutoSubmit, enabled = true }: AntiCheatOptions 
 
     // Disable right-click context menu
     const handleContextMenu = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      const allowPasteField = target?.closest('[data-allow-paste="true"]');
+      if (allowPasteField) return;
+
       e.preventDefault();
       toast.warning('Right-click is disabled during the test.', { duration: 2000 });
     };
@@ -39,22 +43,38 @@ export function useAntiCheat({ onAutoSubmit, enabled = true }: AntiCheatOptions 
       }
     };
 
-    // Disable common keyboard shortcuts for copy
+    // Disable common keyboard shortcuts for copy/paste except explicitly allowed fields
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'v' || e.key === 'a' || e.key === 'u')) {
-        // Allow in input/textarea for typing, but block copy
-        if (e.key === 'c' || e.key === 'v' || e.key === 'a') {
+      const key = e.key.toLowerCase();
+
+      if ((e.ctrlKey || e.metaKey) && (key === 'c' || key === 'v' || key === 'a' || key === 'u')) {
+        // Allow select-all in any textarea and allow paste only in explicitly flagged fields
+        if (key === 'c' || key === 'v' || key === 'a') {
           const target = e.target as HTMLElement;
           const isWritingArea = target.tagName === 'TEXTAREA';
-          // Allow select-all and basic editing in writing textarea, but not copy/paste
-          if (e.key === 'a' && isWritingArea) return;
-          if (e.key !== 'a') {
+          const allowPaste = isWritingArea && (target as HTMLTextAreaElement).dataset.allowPaste === 'true';
+
+          if (key === 'a' && isWritingArea) return;
+          if (key === 'v' && allowPaste) return;
+
+          if (key !== 'a') {
             e.preventDefault();
             toast.warning('Copy/paste is disabled during the test.', { duration: 2000 });
           }
         }
-        if (e.key === 'u') {
+        if (key === 'u') {
           e.preventDefault();
+        }
+      }
+
+      if (e.shiftKey && e.key === 'Insert') {
+        const target = e.target as HTMLElement;
+        const isWritingArea = target.tagName === 'TEXTAREA';
+        const allowPaste = isWritingArea && (target as HTMLTextAreaElement).dataset.allowPaste === 'true';
+
+        if (!allowPaste) {
+          e.preventDefault();
+          toast.warning('Copy/paste is disabled during the test.', { duration: 2000 });
         }
       }
     };
