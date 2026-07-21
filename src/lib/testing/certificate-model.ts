@@ -1,14 +1,16 @@
 import mongoose, { Schema, type HydratedDocument, type Model, type Query } from 'mongoose';
-import type { CertificateStatus, TestSessionFinalScores } from '@/lib/testing/types';
+import type { CertificateStatus, ModuleBandBreakdown } from '@/lib/testing/types';
 
 export interface Certificate {
   certificateId: string;
-  sessionId: string;
-  testId?: string;
+  testId: string;
   studentId: mongoose.Types.ObjectId;
+  attemptId: mongoose.Types.ObjectId;
+  resultId: mongoose.Types.ObjectId;
   fullName: string;
   registerNumber: string;
-  scores: TestSessionFinalScores;
+  moduleBands: ModuleBandBreakdown;
+  overallBand: number;
   status: CertificateStatus;
   issuedAt: Date;
   verificationUrl: string;
@@ -28,16 +30,11 @@ const certificateSchema = new Schema<Certificate>(
       trim: true,
       index: true,
     },
-    sessionId: {
+    testId: {
       type: String,
       required: true,
       unique: true,
       immutable: true,
-      trim: true,
-      index: true,
-    },
-    testId: {
-      type: String,
       trim: true,
       index: true,
     },
@@ -46,6 +43,20 @@ const certificateSchema = new Schema<Certificate>(
       required: true,
       immutable: true,
       ref: 'Student',
+      index: true,
+    },
+    attemptId: {
+      type: Schema.Types.ObjectId,
+      required: true,
+      immutable: true,
+      ref: 'TestAttempt',
+      index: true,
+    },
+    resultId: {
+      type: Schema.Types.ObjectId,
+      required: true,
+      immutable: true,
+      ref: 'TestResult',
       index: true,
     },
     fullName: {
@@ -62,10 +73,17 @@ const certificateSchema = new Schema<Certificate>(
       trim: true,
       maxlength: 20,
     },
-    scores: {
+    moduleBands: {
       type: Schema.Types.Mixed,
       required: true,
       immutable: true,
+    },
+    overallBand: {
+      type: Number,
+      required: true,
+      immutable: true,
+      min: 0,
+      max: 9,
     },
     status: {
       type: String,

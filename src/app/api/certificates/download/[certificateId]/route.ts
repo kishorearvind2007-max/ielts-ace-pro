@@ -40,34 +40,6 @@ function buildDownloadFileName(certificateId: string): string {
   return `IELTS-Certificate-${safeId}.pdf`;
 }
 
-function extractCertificateScores(certificate: {
-  scores?: {
-    listening?: number;
-    reading?: number;
-    writing?: number;
-    speaking?: number;
-    overallBand?: number;
-  };
-  moduleBands?: {
-    listening?: number;
-    reading?: number;
-    writing?: number;
-    speaking?: number;
-  };
-  overallBand?: number;
-}) {
-  const scores = certificate.scores ?? {};
-  const legacyBands = certificate.moduleBands ?? {};
-
-  return {
-    listening: normalizeBand(scores.listening ?? legacyBands.listening),
-    reading: normalizeBand(scores.reading ?? legacyBands.reading),
-    writing: normalizeBand(scores.writing ?? legacyBands.writing),
-    speaking: normalizeBand(scores.speaking ?? legacyBands.speaking),
-    overallBand: normalizeBand(scores.overallBand ?? certificate.overallBand),
-  };
-}
-
 export async function GET(request: NextRequest, context: { params: Promise<RouteParams> }) {
   const sessionUser = await getSessionUserFromRequest(request);
   if (!sessionUser) {
@@ -98,7 +70,12 @@ export async function GET(request: NextRequest, context: { params: Promise<Route
       );
     }
 
-    const resolvedScores = extractCertificateScores(certificate);
+    const rawBands = (certificate.moduleBands ?? {}) as {
+      listening?: number;
+      reading?: number;
+      writing?: number;
+      speaking?: number;
+    };
 
     const pdfBytes = await renderCertificatePdf(
       {
@@ -106,12 +83,12 @@ export async function GET(request: NextRequest, context: { params: Promise<Route
         fullName: certificate.fullName,
         registerNumber: certificate.registerNumber,
         moduleBands: {
-          listening: resolvedScores.listening,
-          reading: resolvedScores.reading,
-          writing: resolvedScores.writing,
-          speaking: resolvedScores.speaking,
+          listening: normalizeBand(rawBands.listening),
+          reading: normalizeBand(rawBands.reading),
+          writing: normalizeBand(rawBands.writing),
+          speaking: normalizeBand(rawBands.speaking),
         },
-        overallBand: resolvedScores.overallBand,
+        overallBand: normalizeBand(certificate.overallBand),
         issuedAt: certificate.issuedAt,
         verificationUrl: resolveVerificationUrl(request, certificateId, certificate.verificationUrl),
       },

@@ -11,29 +11,11 @@ import {
 import { toPublicCertificate } from '@/lib/testing/certificate-mappers';
 import { CertificateModel, type CertificateDocument } from '@/lib/testing/certificate-model';
 import { generateCertificateId } from '@/lib/testing/id';
-import { TestAttemptModel } from '@/lib/testing/test-attempt-model';
-import type { ModuleBandBreakdown, TestSessionFinalScores } from '@/lib/testing/types';
+import { TestResultModel } from '@/lib/testing/test-result-model';
+import type { ModuleBandBreakdown } from '@/lib/testing/types';
 import { issueCertificateSchema } from '@/lib/testing/validators';
 
 export const runtime = 'nodejs';
-
-type LegacyResultModules = {
-  listening?: { band?: number };
-  reading?: { band?: number };
-  writing?: { band?: number };
-  speaking?: { band?: number };
-  overallBand?: number;
-};
-
-type AttemptLike = {
-  _id: unknown;
-  sessionId?: string;
-  testId?: string;
-  status?: string;
-  resultLocked?: boolean;
-  finalScores?: Partial<TestSessionFinalScores> | null;
-  moduleResults?: LegacyResultModules | null;
-};
 
 function isDuplicateKeyError(error: unknown): boolean {
   return typeof error === 'object'
@@ -42,16 +24,20 @@ function isDuplicateKeyError(error: unknown): boolean {
     && (error as { code?: unknown }).code === 11000;
 }
 
-function normalizeBand(value: unknown): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    return 0;
-  }
-
-  return Math.max(0, Math.min(9, value));
-}
-
 function extractModuleBands(modules: unknown): ModuleBandBreakdown {
-  const source = (modules ?? {}) as LegacyResultModules;
+  const source = (modules ?? {}) as {
+    listening?: { band?: number };
+    reading?: { band?: number };
+    writing?: { band?: number };
+    speaking?: { band?: number };
+  };
+
+  const normalizeBand = (value: unknown) => {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      return 0;
+    }
+    return Math.max(0, Math.min(9, value));
+  };
 
   return {
     listening: normalizeBand(source.listening?.band),
@@ -61,86 +47,31 @@ function extractModuleBands(modules: unknown): ModuleBandBreakdown {
   };
 }
 
-function resolveFinalScores(attempt: AttemptLike): TestSessionFinalScores {
-  const fromFinalScores = attempt.finalScores;
-  if (fromFinalScores) {
-    return {
-      listening: normalizeBand(fromFinalScores.listening),
-      reading: normalizeBand(fromFinalScores.reading),
-      writing: normalizeBand(fromFinalScores.writing),
-      speaking: normalizeBand(fromFinalScores.speaking),
-      overallBand: normalizeBand(fromFinalScores.overallBand),
-    };
-  }
-
-  const moduleBands = extractModuleBands(attempt.moduleResults);
-  const legacyOverall = (attempt.moduleResults ?? {}).overallBand;
-
-  return {
-    ...moduleBands,
-    overallBand: normalizeBand(legacyOverall),
-  };
-}
-
-function buildSessionLookup(sessionId: string, studentId: string) {
-  return {
-    studentId,
-    $or: [
-      { sessionId },
-      { testId: sessionId },
-    ],
-  };
-}
-
-function extractRequestedSessionId(input: { sessionId?: string; testId?: string }): string | null {
-  const sessionId = input.sessionId?.trim();
-  if (sessionId) {
-    return sessionId;
-  }
-
-  const legacyTestId = input.testId?.trim();
-  if (legacyTestId) {
-    return legacyTestId;
-  }
-
-  return null;
-}
-
-function resolveSessionIdFromAttempt(attempt: AttemptLike, fallback: string | null): string {
-  return attempt.sessionId ?? attempt.testId ?? fallback ?? '';
-}
-
-function toEligibilityInput(scores: TestSessionFinalScores) {
-  return {
-    moduleBands: {
-      listening: scores.listening,
-      reading: scores.reading,
-      writing: scores.writing,
-      speaking: scores.speaking,
-    },
-    overallBand: scores.overallBand,
-  };
-}
-
-function buildBaseUrl(request: NextRequest): string {
-  const configuredBaseUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
-  if (configuredBaseUrl && /^https?:\/\//i.test(configuredBaseUrl)) {
-    return configuredBaseUrl.replace(/\/+$/, '');
-  }
-
-  return new URL(request.url).origin;
-}
-
 function buildVerificationUrl(request: NextRequest, certificateId: string): string {
-  return `${buildBaseUrl(request)}/api/certificates/verify/${certificateId}`;
+  const configuredBaseUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  const baseUrl = configuredBaseUrl && /^https?:\/\//i.test(configuredBaseUrl)
+    ? configuredBaseUrl.replace(/\/+$/, '')
+    : new URL(request.url).origin;
+
+  return `${baseUrl}/api/certificates/verify/${certificateId}`;
 }
 
 function buildPreviewUrl(request: NextRequest, certificateId: string): string {
-  return `${buildBaseUrl(request)}/api/certificates/preview/${certificateId}`;
+  const configuredBaseUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  const baseUrl = configuredBaseUrl && /^https?:\/\//i.test(configuredBaseUrl)
+    ? configuredBaseUrl.replace(/\/+$/, '')
+    : new URL(request.url).origin;
+
+  return `${baseUrl}/api/certificates/preview/${certificateId}`;
 }
 
 function buildDownloadUrl(request: NextRequest, certificateId: string): string {
-  return `${buildBaseUrl(request)}/api/certificates/download/${certificateId}`;
+  const configuredBaseUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  const baseUrl = configuredBaseUrl && /^https?:\/\//i.test(configuredBaseUrl)
+    ? configuredBaseUrl.replace(/\/+$/, '')
+    : new URL(request.url).origin;
+
+  return `${baseUrl}/api/certificates/download/${certificateId}`;
 }
 
 export async function POST(request: NextRequest) {
@@ -153,7 +84,7 @@ export async function POST(request: NextRequest) {
   try {
     rawBody = await request.json();
   } catch {
-    rawBody = {};
+    return authError('INVALID_REQUEST', 'Invalid JSON payload.', 400);
   }
 
   const parsed = issueCertificateSchema.safeParse(rawBody);
@@ -161,47 +92,12 @@ export async function POST(request: NextRequest) {
     return authError('VALIDATION_ERROR', 'Invalid certificate issue payload.', 400, parsed.error.flatten());
   }
 
-  const requestedSessionId = extractRequestedSessionId(parsed.data);
+  const testId = parsed.data.testId;
 
   try {
     await connectToDatabase();
 
-    let attempt: AttemptLike | null;
-
-    if (requestedSessionId) {
-      attempt = await TestAttemptModel.findOne(
-        buildSessionLookup(requestedSessionId, sessionUser.id),
-      ).lean<AttemptLike>();
-    } else {
-      attempt = await TestAttemptModel.findOne({
-        studentId: sessionUser.id,
-        status: 'COMPLETED',
-        resultLocked: true,
-      })
-        .sort({ completedAt: -1, createdAt: -1 })
-        .lean<AttemptLike>();
-    }
-
-    if (!attempt) {
-      return NextResponse.json(
-        {
-          error: 'NOT_FOUND',
-          message: 'Completed locked test session not found for certificate issuance.',
-        },
-        { status: 404 },
-      );
-    }
-
-    const resolvedSessionId = resolveSessionIdFromAttempt(attempt, requestedSessionId);
-    if (!resolvedSessionId) {
-      throw new Error('Resolved sessionId is empty for certificate issuance.');
-    }
-
-    const existingCertificate = await CertificateModel.findOne({
-      sessionId: resolvedSessionId,
-      studentId: sessionUser.id,
-    }).lean();
-
+    const existingCertificate = await CertificateModel.findOne({ testId, studentId: sessionUser.id }).lean();
     if (existingCertificate) {
       return NextResponse.json({
         issued: false,
@@ -212,16 +108,22 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    if (attempt.status !== 'COMPLETED' || !attempt.resultLocked) {
-      return authError(
-        'CONFLICT',
-        'Certificate can be issued only from a completed and locked test session.',
-        409,
+    const result = await TestResultModel.findOne({ testId, studentId: sessionUser.id }).lean();
+    if (!result) {
+      return NextResponse.json(
+        {
+          error: 'NOT_FOUND',
+          message: 'Completed test result not found for this testId.',
+        },
+        { status: 404 },
       );
     }
 
-    const finalScores = resolveFinalScores(attempt);
-    const eligibility = evaluateCertificateEligibility(toEligibilityInput(finalScores));
+    const moduleBands = extractModuleBands(result.modules);
+    const eligibility = evaluateCertificateEligibility({
+      moduleBands,
+      overallBand: result.overallBand,
+    });
     if (!eligibility.qualified) {
       return authError(
         'INELIGIBLE',
@@ -251,16 +153,14 @@ export async function POST(request: NextRequest) {
       try {
         const created = await CertificateModel.create({
           certificateId: candidateCertificateId,
-          sessionId: resolvedSessionId,
-          // Legacy alias retained during transition.
-          testId: resolvedSessionId,
+          testId,
           studentId: sessionUser.id,
+          attemptId: result.attemptId,
+          resultId: result._id,
           fullName: student.fullName,
           registerNumber: student.registerNumber,
-          scores: {
-            ...eligibility.moduleBands,
-            overallBand: eligibility.overallBand,
-          },
+          moduleBands: eligibility.moduleBands,
+          overallBand: eligibility.overallBand,
           status: 'ISSUED',
           issuedAt: new Date(),
           verificationUrl: buildVerificationUrl(request, candidateCertificateId),
@@ -275,11 +175,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!createdCertificate) {
-      const racedCertificate = await CertificateModel.findOne({
-        sessionId: resolvedSessionId,
-        studentId: sessionUser.id,
-      }).lean();
-
+      const racedCertificate = await CertificateModel.findOne({ testId, studentId: sessionUser.id }).lean();
       if (racedCertificate) {
         return NextResponse.json({
           issued: false,
@@ -292,17 +188,6 @@ export async function POST(request: NextRequest) {
 
       throw new Error('Failed to allocate a unique certificateId after multiple attempts.');
     }
-
-    await TestAttemptModel.updateOne(
-      { _id: attempt._id, studentId: sessionUser.id },
-      {
-        $set: {
-          sessionId: resolvedSessionId,
-          testId: resolvedSessionId,
-          certificateIssued: true,
-        },
-      },
-    );
 
     return NextResponse.json({
       issued: true,

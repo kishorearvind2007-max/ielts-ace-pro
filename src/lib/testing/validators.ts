@@ -24,12 +24,8 @@ export const finalizeAttemptSchema = z.object({
   speakingTranscripts: speakingTranscriptsSchema,
 });
 
-const sessionIdentifierSchema = z.string().trim().min(8).max(64);
-
 export const issueCertificateSchema = z.object({
-  sessionId: sessionIdentifierSchema.optional(),
-  // Legacy alias accepted during transition.
-  testId: sessionIdentifierSchema.optional(),
+  testId: z.string().trim().min(8).max(64),
 });
 
 const bandSchema = z.number().finite().min(0).max(9);
