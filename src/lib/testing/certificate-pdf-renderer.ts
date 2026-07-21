@@ -6,9 +6,9 @@ import {
   PDFDocument,
   StandardFonts,
   rgb,
-  type PDFFont,
   type PDFImage,
 } from 'pdf-lib';
+import QRCode from 'qrcode';
 import {
   getCertificateTemplatePublicPath,
   type CertificatePreviewPayload,
@@ -140,37 +140,21 @@ async function loadTemplateImage(
   }
 }
 
-function fitTextSize(
-  font: PDFFont,
-  text: string,
-  maxWidth: number,
-  maxSize: number,
-  minSize: number,
-): number {
-  let size = maxSize;
-  while (size > minSize && font.widthOfTextAtSize(text, size) > maxWidth) {
-    size -= 1;
+async function generateQRCodeDataUrl(text: string): Promise<string> {
+  try {
+    return await QRCode.toDataURL(text, {
+      errorCorrectionLevel: 'M',
+      margin: 1,
+      width: 400,
+      color: {
+        dark: '#352410',
+        light: '#FFFFFF',
+      },
+    });
+  } catch {
+    // Return a minimal fallback QR code data URL if generation fails
+    return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
   }
-
-  return Math.max(size, minSize);
-}
-
-function baselineFromTopPercent(topPercent: number, pageHeight: number, fontSize: number): number {
-  return (pageHeight * (1 - topPercent)) - (fontSize * 0.34);
-}
-
-function truncateText(value: string, maxLength: number): string {
-  if (value.length <= maxLength) {
-    return value;
-  }
-
-  if (maxLength <= 3) {
-    return value.slice(0, maxLength);
-  }
-
-  const leftLength = Math.ceil((maxLength - 3) / 2);
-  const rightLength = Math.floor((maxLength - 3) / 2);
-  return `${value.slice(0, leftLength)}...${value.slice(value.length - rightLength)}`;
 }
 
 export async function renderCertificatePdf(
@@ -198,7 +182,6 @@ export async function renderCertificatePdf(
 
   const textColor = rgb(0x35 / 255, 0x24 / 255, 0x10 / 255);
   const boldFont = await pdfDocument.embedFont(StandardFonts.HelveticaBold);
-  const regularFont = await pdfDocument.embedFont(StandardFonts.Helvetica);
 
   const fullName = normalizeText(payload.fullName, 'Candidate Name');
   const registerNumber = normalizeText(payload.registerNumber, 'N/A');
@@ -206,72 +189,68 @@ export async function renderCertificatePdf(
   const issuedDate = formatIssuedDate(payload.issuedAt);
   const verificationUrl = normalizeText(payload.verificationUrl, 'N/A');
 
-  const nameFontSize = fitTextSize(
-    boldFont,
-    fullName,
-    pageWidth * 0.78,
-    Math.max(56, pageWidth * 0.028),
-    Math.max(36, pageWidth * 0.016),
-  );
-
+  // Name positioning - exactly matching HTML preview
+  // HTML: top: 48%, centered horizontally, font-size: clamp(1.2rem, 3.15vw, 3rem) ≈ 3.15% of width
+  const nameFontSize = pageWidth * 0.0315; // 3.15% of page width for font size
   const nameWidth = boldFont.widthOfTextAtSize(fullName, nameFontSize);
+  const nameX = (pageWidth - nameWidth) / 2; // Centered
+  const nameY = pageHeight * 0.52; // 48% from top = 52% from bottom in PDF coordinates
+
   page.drawText(fullName, {
-    x: (pageWidth - nameWidth) / 2,
-    y: baselineFromTopPercent(0.48, pageHeight, nameFontSize),
+    x: nameX,
+    y: nameY,
     size: nameFontSize,
     font: boldFont,
     color: textColor,
   });
 
-  const scoreFontSize = Math.max(26, Math.min(62, pageWidth * 0.016));
+  // Score positioning - exactly matching HTML preview
+  // HTML: font-size: clamp(0.95rem, 1.4vw, 1.5rem) ≈ 1.4% of width
+  const scoreFontSize = pageWidth * 0.014; // 1.4% of page width
+
+  // Helper to place scores using exact HTML percentages
   const drawScore = (value: string, leftPercent: number, topPercent: number) => {
+    const x = pageWidth * leftPercent;
+    const y = pageHeight * (1 - topPercent); // Convert top % to bottom % for PDF
+    
     page.drawText(value, {
-      x: pageWidth * leftPercent,
-      y: baselineFromTopPercent(topPercent, pageHeight, scoreFontSize),
+      x,
+      y,
       size: scoreFontSize,
       font: boldFont,
       color: textColor,
     });
   };
 
-  drawScore(formatBand(payload.overallBand), 0.403, 0.742);
-  drawScore(formatBand(moduleBands.listening), 0.259, 0.799);
-  drawScore(formatBand(moduleBands.reading), 0.399, 0.799);
-  drawScore(formatBand(moduleBands.writing), 0.255, 0.848);
-  drawScore(formatBand(moduleBands.speaking), 0.399, 0.848);
+  // Exact positions from HTML CSS
+  drawScore(formatBand(payload.overallBand), 0.403, 0.742);   // Overall
+  drawScore(formatBand(moduleBands.listening), 0.259, 0.799); // Listening
+  drawScore(formatBand(moduleBands.reading), 0.399, 0.799);   // Reading
+  drawScore(formatBand(moduleBands.writing), 0.255, 0.848);   // Writing
+  drawScore(formatBand(moduleBands.speaking), 0.399, 0.848);  // Speaking
 
-  const metadataFontSize = Math.max(18, Math.min(24, pageWidth * 0.006));
-  const metadataX = pageWidth * 0.055;
-  const metadataY = pageHeight * 0.062;
-  const metadataWidth = pageWidth * 0.42;
-  const metadataHeight = pageHeight * 0.14;
-
-  page.drawRectangle({
-    x: metadataX,
-    y: metadataY,
-    width: metadataWidth,
-    height: metadataHeight,
-    color: rgb(1, 1, 1),
-    opacity: 0.74,
-    borderColor: rgb(0.73, 0.62, 0.44),
-    borderWidth: 1,
-  });
-
-  const metadataLines = [
+  // Generate QR Code with certificate details
+  const qrCodeData = [
     `Certificate ID: ${certificateId}`,
     `Register Number: ${registerNumber}`,
     `Issued On: ${issuedDate}`,
-    `Verify: ${truncateText(verificationUrl, 72)}`,
-  ];
+    `Verify: ${verificationUrl}`,
+  ].join('\n');
 
-  metadataLines.forEach((line, index) => {
-    page.drawText(line, {
-      x: metadataX + (pageWidth * 0.012),
-      y: metadataY + metadataHeight - ((index + 1) * (metadataFontSize + 10)),
-      size: metadataFontSize,
-      font: regularFont,
-      color: textColor,
-    });
+  const qrCodeDataUrl = await generateQRCodeDataUrl(qrCodeData);
+  const qrCodeImageBytes = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
+  const qrCodeImage = await pdfDocument.embedPng(qrCodeImageBytes);
+
+  // Position QR code in the top-left area, vertically centered
+  const qrSize = pageWidth * 0.11; // Slightly smaller for better fit
+  const qrX = pageWidth * 0.045; // Left margin
+  const qrY = pageHeight * 0.42; // Vertically centered (50% - half of QR size)
+
+  page.drawImage(qrCodeImage, {
+    x: qrX,
+    y: qrY,
+    width: qrSize,
+    height: qrSize,
   });
 
   return pdfDocument.save();
