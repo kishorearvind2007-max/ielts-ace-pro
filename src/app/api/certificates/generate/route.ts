@@ -105,13 +105,47 @@ export async function POST(request: NextRequest) {
 
     const baseUrl = buildBaseUrl(request);
 
+    // Check if certificate already exists for this student
+    const existingCertificate = await CertificateModel.findOne({
+      studentId: student._id,
+      'moduleBands.listening': eligibility.moduleBands.listening,
+      'moduleBands.reading': eligibility.moduleBands.reading,
+      'moduleBands.writing': eligibility.moduleBands.writing,
+      'moduleBands.speaking': eligibility.moduleBands.speaking,
+      overallBand: eligibility.overallBand,
+    }).lean();
+
+    if (existingCertificate) {
+      return NextResponse.json({
+        issued: false,
+        idempotent: true,
+        source: 'local-ui',
+        certificate: toPublicCertificate(existingCertificate),
+        previewUrl: buildPreviewUrl(baseUrl, existingCertificate.certificateId),
+        downloadUrl: buildDownloadUrl(baseUrl, existingCertificate.certificateId),
+      });
+    }
+
     let createdCertificate: CertificateDocument | null = null;
     let attempts = 0;
+    const maxAttempts = 10; // Increased from 5
 
-    while (!createdCertificate && attempts < 5) {
+    while (!createdCertificate && attempts < maxAttempts) {
       attempts += 1;
       const candidateCertificateId = generateCertificateId();
       const candidateTestId = generateTestId();
+
+      // Check if these IDs already exist
+      const idExists = await CertificateModel.exists({
+        $or: [
+          { certificateId: candidateCertificateId },
+          { testId: candidateTestId },
+        ],
+      });
+
+      if (idExists) {
+        continue; // Try again with new IDs
+      }
 
       try {
         const created = await CertificateModel.create({
@@ -138,7 +172,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (!createdCertificate) {
-      throw new Error('Failed to allocate a unique certificate identity after multiple attempts.');
+      // Log for debugging
+      console.error('[certificate/generate] Failed to allocate unique ID after', maxAttempts, 'attempts');
+      throw new Error(`Failed to allocate a unique certificate identity after ${maxAttempts} attempts.`);
     }
 
     return NextResponse.json({

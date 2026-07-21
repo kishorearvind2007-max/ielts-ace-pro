@@ -12,9 +12,11 @@ function randomToken(bytes: number): string {
 }
 
 export function generateTestId(now = new Date()): string {
-  return `TST-${buildDateStamp(now)}-${randomToken(4)}`;
+  const timestamp = now.getTime().toString(36).toUpperCase();
+  return `TST-${buildDateStamp(now)}-${randomToken(4)}-${timestamp.slice(-4)}`;
 }
 
 export function generateCertificateId(now = new Date()): string {
-  return `CERT-${buildDateStamp(now)}-${randomToken(4)}`;
+  const timestamp = now.getTime().toString(36).toUpperCase();
+  return `CERT-${buildDateStamp(now)}-${randomToken(4)}-${timestamp.slice(-4)}`;
 }
