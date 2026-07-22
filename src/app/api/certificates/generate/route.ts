@@ -13,7 +13,8 @@ import {
 import { toPublicCertificate } from '@/lib/testing/certificate-mappers';
 import { CertificateModel, type CertificateDocument } from '@/lib/testing/certificate-model';
 import { generateCertificateId, generateTestId } from '@/lib/testing/id';
-import { generateCertificateSchema } from '@/lib/testing/validators';
+import { TestAttemptModel } from '@/lib/testing/test-attempt-model';
+import type { ModuleBandBreakdown } from '@/lib/testing/types';
 
 export const runtime = 'nodejs';
 
@@ -62,37 +63,33 @@ async function resolveSessionStudent(sessionUser: SessionUser) {
   return StudentModel.findOne({ registerNumber: normalizedRegisterNumber }).lean();
 }
 
+function extractModuleBandsFromAttempt(finalScores: unknown): ModuleBandBreakdown {
+  const scores = (finalScores ?? {}) as {
+    listening?: number;
+    reading?: number;
+    writing?: number;
+    speaking?: number;
+  };
+
+  const normalizeBand = (value: unknown) => {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      return 0;
+    }
+    return Math.max(0, Math.min(9, value));
+  };
+
+  return {
+    listening: normalizeBand(scores.listening),
+    reading: normalizeBand(scores.reading),
+    writing: normalizeBand(scores.writing),
+    speaking: normalizeBand(scores.speaking),
+  };
+}
+
 export async function POST(request: NextRequest) {
   const sessionUser = await getSessionUserFromRequest(request);
   if (!sessionUser) {
     return authError('UNAUTHORIZED', 'Not authenticated.', 401);
-  }
-
-  let rawBody: unknown;
-  try {
-    rawBody = await request.json();
-  } catch {
-    return authError('INVALID_REQUEST', 'Invalid JSON payload.', 400);
-  }
-
-  const parsed = generateCertificateSchema.safeParse(rawBody);
-  if (!parsed.success) {
-    return authError('VALIDATION_ERROR', 'Invalid certificate generation payload.', 400, parsed.error.flatten());
-  }
-
-  const eligibility = evaluateCertificateEligibility({ moduleBands: parsed.data.moduleBands });
-  if (!eligibility.qualified) {
-    return authError(
-      'INELIGIBLE',
-      buildCertificateEligibilityMessage(eligibility),
-      400,
-      {
-        threshold: eligibility.threshold,
-        failedCriteria: eligibility.failedCriteria,
-        moduleBands: eligibility.moduleBands,
-        overallBand: eligibility.overallBand,
-      },
-    );
   }
 
   try {
@@ -103,23 +100,68 @@ export async function POST(request: NextRequest) {
       return authError('UNAUTHORIZED', 'Session is no longer valid.', 401);
     }
 
-    const baseUrl = buildBaseUrl(request);
-
-    // Check if certificate already exists for this student
-    const existingCertificate = await CertificateModel.findOne({
+    // Find the most recent completed and locked test attempt
+    const testAttempt = await TestAttemptModel.findOne({
       studentId: student._id,
-      'moduleBands.listening': eligibility.moduleBands.listening,
-      'moduleBands.reading': eligibility.moduleBands.reading,
-      'moduleBands.writing': eligibility.moduleBands.writing,
-      'moduleBands.speaking': eligibility.moduleBands.speaking,
-      overallBand: eligibility.overallBand,
+      status: 'COMPLETED',
+      resultLocked: true,
+    })
+      .sort({ completedAt: -1, createdAt: -1 })
+      .lean();
+
+    if (!testAttempt) {
+      return NextResponse.json(
+        {
+          error: 'NO_COMPLETED_TEST',
+          message: 'No completed and finalized test found. Complete all four modules and finalize your test first.',
+        },
+        { status: 404 },
+      );
+    }
+
+    if (!testAttempt.finalScores) {
+      return authError(
+        'INCOMPLETE_RESULTS',
+        'Test results are incomplete. Please ensure all modules are evaluated.',
+        400,
+      );
+    }
+
+    // Extract band scores from the test attempt
+    const moduleBands = extractModuleBandsFromAttempt(testAttempt.finalScores);
+    const overallBand = typeof testAttempt.finalScores === 'object' && testAttempt.finalScores !== null
+      ? (testAttempt.finalScores as { overallBand?: number }).overallBand ?? 0
+      : 0;
+
+    const eligibility = evaluateCertificateEligibility({ moduleBands, overallBand });
+    if (!eligibility.qualified) {
+      return authError(
+        'INELIGIBLE',
+        buildCertificateEligibilityMessage(eligibility),
+        400,
+        {
+          threshold: eligibility.threshold,
+          failedCriteria: eligibility.failedCriteria,
+          moduleBands: eligibility.moduleBands,
+          overallBand: eligibility.overallBand,
+        },
+      );
+    }
+
+    const baseUrl = buildBaseUrl(request);
+    const testId = testAttempt.sessionId;
+
+    // Check if certificate already exists for this test
+    const existingCertificate = await CertificateModel.findOne({
+      testId,
+      studentId: student._id,
     }).lean();
 
     if (existingCertificate) {
       return NextResponse.json({
         issued: false,
         idempotent: true,
-        source: 'local-ui',
+        source: 'database',
         certificate: toPublicCertificate(existingCertificate),
         previewUrl: buildPreviewUrl(baseUrl, existingCertificate.certificateId),
         downloadUrl: buildDownloadUrl(baseUrl, existingCertificate.certificateId),
@@ -152,8 +194,8 @@ export async function POST(request: NextRequest) {
           certificateId: candidateCertificateId,
           testId: candidateTestId,
           studentId: student._id,
-          attemptId: new mongoose.Types.ObjectId(),
-          resultId: new mongoose.Types.ObjectId(),
+          attemptId: testAttempt._id,
+          resultId: testAttempt._id, // Using attemptId as resultId since we don't have separate result model
           fullName: student.fullName,
           registerNumber: student.registerNumber,
           moduleBands: eligibility.moduleBands,
@@ -180,7 +222,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       issued: true,
       idempotent: false,
-      source: 'local-ui',
+      source: 'test-attempt',
       certificate: toPublicCertificate(createdCertificate),
       previewUrl: buildPreviewUrl(baseUrl, createdCertificate.certificateId),
       downloadUrl: buildDownloadUrl(baseUrl, createdCertificate.certificateId),

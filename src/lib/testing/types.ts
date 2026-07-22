@@ -86,3 +86,11 @@ export type ModuleBandBreakdown = {
   writing: number;
   speaking: number;
 };
+
+export type TestSessionFinalScores = {
+  listening: number;
+  reading: number;
+  writing: number;
+  speaking: number;
+  overallBand: number;
+};

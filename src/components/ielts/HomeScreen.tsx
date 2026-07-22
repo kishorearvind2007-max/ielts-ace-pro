@@ -126,21 +126,22 @@ export function HomeScreen() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          moduleBands: {
-            listening: listeningBand,
-            reading: readingBand,
-            writing: writingBand,
-            speaking: speakingBand,
-          },
-        }),
+        body: JSON.stringify({}), // No manual scores needed anymore
       });
 
       const payload = await response.json();
       if (!response.ok) {
-        const baseMessage = typeof payload?.message === 'string'
+        let baseMessage = typeof payload?.message === 'string'
           ? payload.message
           : 'Certificate generation failed. Please try again.';
+
+        if (payload?.error === 'NO_COMPLETED_TEST') {
+          baseMessage = 'No completed test found in database. Please complete and finalize all four modules first.';
+        }
+
+        if (payload?.error === 'INCOMPLETE_RESULTS') {
+          baseMessage = 'Test results are incomplete. Ensure all modules are evaluated and finalized.';
+        }
 
         const details = typeof payload?.details === 'string' ? payload.details : null;
         const message = details ? `${baseMessage} (${details})` : baseMessage;

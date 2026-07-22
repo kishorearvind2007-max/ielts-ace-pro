@@ -258,6 +258,7 @@ export interface TestState {
   timerSeconds: number;
   isTimerRunning: boolean;
   apiKey: string;
+  sessionId: string | null;
 }
 
 export type TestAction =
@@ -273,4 +274,5 @@ export type TestAction =
   | { type: 'SET_TIMER'; seconds: number }
   | { type: 'SET_TIMER_RUNNING'; running: boolean }
   | { type: 'SET_API_KEY'; key: string }
+  | { type: 'SET_SESSION_ID'; sessionId: string }
   | { type: 'RESET' };
