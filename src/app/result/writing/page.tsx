@@ -362,16 +362,48 @@ export default function WritingResultPage() {
     const [activeTask, setActiveTask] = useState<1 | 2>(1);
 
     useEffect(() => {
-        const stored = localStorage.getItem("writingResult");
-        if (stored) {
-            try {
-                setData(JSON.parse(stored));
-            } catch {
+        const loadResults = async () => {
+            // Try to get sessionId from URL params or localStorage
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionId = urlParams.get('testId') || localStorage.getItem('currentSessionId');
+
+            if (sessionId) {
+                // Fetch from database
+                try {
+                    const response = await fetch(`/api/test-attempts/${sessionId}`);
+                    if (response.ok) {
+                        const apiData = await response.json();
+                        const moduleResult = apiData.attempt?.moduleResults?.writing;
+                        if (moduleResult?.writingEvaluations?.task1 && moduleResult?.writingEvaluations?.task2) {
+                            const resultData: WritingResultData = {
+                                task1: moduleResult.writingEvaluations.task1,
+                                task2: moduleResult.writingEvaluations.task2,
+                                overallBand: moduleResult.band,
+                                timestamp: apiData.attempt.updatedAt || new Date().toISOString(),
+                            };
+                            setData(resultData);
+                            return;
+                        }
+                    }
+                } catch (error) {
+                    console.warn('[writing-result] Failed to fetch from database:', error);
+                }
+            }
+
+            // Fallback to localStorage
+            const stored = localStorage.getItem("writingResult");
+            if (stored) {
+                try {
+                    setData(JSON.parse(stored));
+                } catch {
+                    router.push("/dashboard");
+                }
+            } else {
                 router.push("/dashboard");
             }
-        } else {
-            router.push("/dashboard");
-        }
+        };
+
+        loadResults();
     }, [router]);
 
     if (!data) {
@@ -432,21 +464,19 @@ export default function WritingResultPage() {
                 <div className="flex gap-2 mb-6">
                     <button
                         onClick={() => setActiveTask(1)}
-                        className={`flex-1 py-3 px-4 rounded-xl font-medium transition-all ${
-                            activeTask === 1
+                        className={`flex-1 py-3 px-4 rounded-xl font-medium transition-all ${activeTask === 1
                                 ? "bg-primary text-primary-foreground"
                                 : "bg-secondary text-muted-foreground hover:text-foreground"
-                        }`}
+                            }`}
                     >
                         Task 1 — Graph
                     </button>
                     <button
                         onClick={() => setActiveTask(2)}
-                        className={`flex-1 py-3 px-4 rounded-xl font-medium transition-all ${
-                            activeTask === 2
+                        className={`flex-1 py-3 px-4 rounded-xl font-medium transition-all ${activeTask === 2
                                 ? "bg-primary text-primary-foreground"
                                 : "bg-secondary text-muted-foreground hover:text-foreground"
-                        }`}
+                            }`}
                     >
                         Task 2 — Essay
                     </button>

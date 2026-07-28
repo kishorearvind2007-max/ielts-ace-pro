@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTest } from './TestProvider';
 import {
   Headphones,
@@ -41,14 +41,52 @@ export function HomeScreen() {
   const [certificateError, setCertificateError] = useState<string | null>(null);
   const [certificatePreviewUrl, setCertificatePreviewUrl] = useState<string | null>(null);
   const [certificateDownloadUrl, setCertificateDownloadUrl] = useState<string | null>(null);
-  const completedModules = state.results.map(r => r.module);
-  const allDone = completedModules.length === 4;
+  const [confirmNewTest, setConfirmNewTest] = useState(false);
+  const [dbModuleScores, setDbModuleScores] = useState<{
+    listening: number | null;
+    reading: number | null;
+    writing: number | null;
+    speaking: number | null;
+    overall: number | null;
+  } | null>(null);
+  const [isLoadingScores, setIsLoadingScores] = useState(true);
 
+  // Fetch module scores from database on mount
+  useEffect(() => {
+    const fetchScores = async () => {
+      const sessionId = state.sessionId || localStorage.getItem('currentSessionId');
+      if (!sessionId) {
+        setIsLoadingScores(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/test-attempts/${sessionId}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.attempt?.moduleScores) {
+            setDbModuleScores(data.attempt.moduleScores);
+          }
+        }
+      } catch (error) {
+        console.warn('[HomeScreen] Failed to fetch module scores:', error);
+      } finally {
+        setIsLoadingScores(false);
+      }
+    };
+
+    fetchScores();
+  }, [state.sessionId]);
+
+  const completedModules = state.results.map(r => r.module);
+
+  // Use database scores if available, fallback to state
+  // null means "not attempted", number means "completed with that score"
   const moduleBands: Record<TestModule, number | null> = {
-    listening: state.results.find(r => r.module === 'listening')?.band ?? null,
-    reading: state.results.find(r => r.module === 'reading')?.band ?? null,
-    writing: state.results.find(r => r.module === 'writing')?.band ?? null,
-    speaking: state.results.find(r => r.module === 'speaking')?.band ?? null,
+    listening: dbModuleScores?.listening ?? state.results.find(r => r.module === 'listening')?.band ?? null,
+    reading: dbModuleScores?.reading ?? state.results.find(r => r.module === 'reading')?.band ?? null,
+    writing: dbModuleScores?.writing ?? state.results.find(r => r.module === 'writing')?.band ?? null,
+    speaking: dbModuleScores?.speaking ?? state.results.find(r => r.module === 'speaking')?.band ?? null,
   };
 
   const listeningBand = moduleBands.listening ?? 0;
@@ -56,13 +94,29 @@ export function HomeScreen() {
   const writingBand = moduleBands.writing ?? 0;
   const speakingBand = moduleBands.speaking ?? 0;
 
-  const hasAllModuleBands = Object.values(moduleBands).every(
-    (band): band is number => typeof band === 'number' && Number.isFinite(band),
-  );
+  const hasAllModuleBands =
+    moduleBands.listening !== null &&
+    moduleBands.reading !== null &&
+    moduleBands.writing !== null &&
+    moduleBands.speaking !== null;
 
-  const overallBand = hasAllModuleBands
+  const completedCount = [
+    moduleBands.listening,
+    moduleBands.reading,
+    moduleBands.writing,
+    moduleBands.speaking,
+  ].filter(b => b !== null).length;
+
+  const remainingCount = 4 - completedCount;
+
+  const overallBand = dbModuleScores?.overall ?? (hasAllModuleBands
     ? calculateOverallBand([listeningBand, readingBand, writingBand, speakingBand])
-    : null;
+    : null);
+
+  function handleConfirmNewTest() {
+    resetAll();
+    setConfirmNewTest(false);
+  }
 
   const isEligibleForCertificate = hasAllModuleBands
     && listeningBand >= CERTIFICATE_MIN_BAND_THRESHOLD
@@ -190,6 +244,14 @@ export function HomeScreen() {
           </Button>
         </div>
 
+        {/* Loading state */}
+        {isLoadingScores && (
+          <div className="mb-8 p-4 rounded-xl bg-card border border-border flex items-center gap-3 text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Loading your test scores...
+          </div>
+        )}
+
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -294,13 +356,12 @@ export function HomeScreen() {
                 return (
                   <div
                     key={item.key}
-                    className={`rounded-xl border px-3 py-3 text-center ${
-                      hasValue
-                        ? meetsThreshold
-                          ? 'border-success/40 bg-success/10'
-                          : 'border-destructive/40 bg-destructive/10'
-                        : 'border-border bg-background/60'
-                    }`}
+                    className={`rounded-xl border px-3 py-3 text-center ${hasValue
+                      ? meetsThreshold
+                        ? 'border-success/40 bg-success/10'
+                        : 'border-destructive/40 bg-destructive/10'
+                      : 'border-border bg-background/60'
+                      }`}
                   >
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{item.label}</p>
                     <p className="mt-1 text-lg font-bold text-foreground">
@@ -315,7 +376,7 @@ export function HomeScreen() {
               <Button
                 size="lg"
                 onClick={handleGenerateCertificate}
-                disabled={!allDone || isGeneratingCertificate}
+                disabled={!hasAllModuleBands || isGeneratingCertificate}
                 className="w-full bg-gradient-gold px-8 py-6 text-base font-semibold text-primary-foreground shadow-gold sm:w-auto"
               >
                 {isGeneratingCertificate ? (
@@ -332,20 +393,20 @@ export function HomeScreen() {
               </Button>
             </div>
 
-            {!allDone && (
+            {!hasAllModuleBands && (
               <p className="mt-3 text-center text-xs text-muted-foreground">
-                Complete all modules to activate certificate generation.
+                {completedCount} of 4 modules completed — finish {remainingCount} more to unlock certificate generation.
               </p>
             )}
 
-            {allDone && !isEligibleForCertificate && (
+            {hasAllModuleBands && !isEligibleForCertificate && (
               <p className="mt-3 flex items-center justify-center gap-1 text-center text-xs text-destructive">
                 <AlertCircle className="h-4 w-4" />
                 Current scores do not meet the minimum Band {CERTIFICATE_MIN_BAND_THRESHOLD} requirement.
               </p>
             )}
 
-            {allDone && isEligibleForCertificate && !certificateError && (
+            {hasAllModuleBands && isEligibleForCertificate && !certificateError && (
               <p className="mt-3 flex items-center justify-center gap-1 text-center text-xs text-success">
                 <CheckCircle2 className="h-4 w-4" />
                 You meet the eligibility threshold and can generate your certificate.
@@ -390,7 +451,7 @@ export function HomeScreen() {
         </motion.section>
 
         {/* Results button */}
-        {allDone && (
+        {hasAllModuleBands && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center">
             <Button onClick={showResults} size="lg" className="bg-gradient-gold text-primary-foreground shadow-gold text-lg px-10 py-6">
               <Award className="w-5 h-5 mr-2" />
@@ -399,12 +460,33 @@ export function HomeScreen() {
           </motion.div>
         )}
 
-        {completedModules.length > 0 && !allDone && (
+        {completedCount > 0 && !hasAllModuleBands && (
           <div className="text-center">
             <button onClick={showResults} className="text-sm text-muted-foreground hover:text-primary underline">
-              View partial results ({completedModules.length}/4 modules completed)
+              View partial results ({completedCount}/4 modules completed)
             </button>
           </div>
+        )}
+
+        {/* Start New Test */}
+        {hasAllModuleBands && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-6 border-t border-border pt-6 flex flex-col items-center gap-3">
+            {!confirmNewTest ? (
+              <Button variant="outline" onClick={() => setConfirmNewTest(true)}>
+                Start New Test
+              </Button>
+            ) : (
+              <div className="flex flex-col items-center gap-3 text-center">
+                <p className="text-sm text-muted-foreground max-w-md">
+                  Starting a new test will begin a fresh attempt. Your current results are saved.
+                </p>
+                <div className="flex gap-2">
+                  <Button onClick={handleConfirmNewTest}>Confirm</Button>
+                  <Button variant="outline" onClick={() => setConfirmNewTest(false)}>Cancel</Button>
+                </div>
+              </div>
+            )}
+          </motion.div>
         )}
       </div>
     </div>

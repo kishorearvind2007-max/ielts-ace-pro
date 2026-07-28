@@ -39,10 +39,17 @@ export const generateCertificateSchema = z.object({
   }),
 });
 
+export const submitModuleSchema = z.object({
+  module: z.enum(['listening', 'reading', 'writing', 'speaking']),
+  band: z.number().finite().min(0).max(9),
+  moduleResult: z.object({}).passthrough(),
+});
+
 export type CreateTestAttemptInput = z.infer<typeof createTestAttemptSchema>;
 export type FinalizeAttemptInput = z.infer<typeof finalizeAttemptSchema>;
 export type IssueCertificateInput = z.infer<typeof issueCertificateSchema>;
 export type GenerateCertificateInput = z.infer<typeof generateCertificateSchema>;
+export type SubmitModuleInput = z.infer<typeof submitModuleSchema>;
 
 export function toNumericAnswerMap(value: Record<string, string>): Record<number, string> {
   const output: Record<number, string> = {};

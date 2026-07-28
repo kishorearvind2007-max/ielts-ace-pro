@@ -1,0 +1,417 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Add `ModuleScores` type to `src/lib/testing/types.ts`": [
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784789785854
+      },
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784789799090
+      },
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784790265503
+      }
+    ],
+    "1.2 Add `moduleScores` field to TestAttempt interface and Mongoose schema in `src/lib/testing/test-attempt-model.ts`": [
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784789785938
+      },
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784790272278
+      },
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784790490285
+      }
+    ],
+    "2.1 Add `submitModuleSchema` to `src/lib/testing/validators.ts`": [
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784789785982
+      },
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784790277945
+      },
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784790495445
+      }
+    ],
+    "3.1 Create `src/app/api/test-attempts/[testId]/submit-module/route.ts`": [
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784789786025
+      },
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784790505904
+      },
+      {
+        "executionId": "7a82c0cc-b574-42b6-8512-d7c45db066ec",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784790664570
+      },
+      {
+        "executionId": "7a82c0cc-b574-42b6-8512-d7c45db066ec",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784790685002
+      },
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884360219
+      },
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884374918
+      },
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884554451
+      }
+    ],
+    "4. Checkpoint — Ensure submit-module route tests pass": [
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784789786068
+      },
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884360305
+      },
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884670472
+      },
+      {
+        "executionId": "c807cf9c-9a06-46cc-a011-658806c4ef89",
+        "chatSessionId": "sess_e3ed050b-1fff-47e7-8f8b-489e18b450e3",
+        "timestamp": 1785139421206
+      }
+    ],
+    "5.1 Create `src/app/api/test-attempts/active/route.ts`": [
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784789786111
+      },
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784790511936
+      },
+      {
+        "executionId": "7a82c0cc-b574-42b6-8512-d7c45db066ec",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784790665432
+      },
+      {
+        "executionId": "7a82c0cc-b574-42b6-8512-d7c45db066ec",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784790685843
+      }
+    ],
+    "6.1 Add `sessionLoaded` boolean flag to TestProvider state and reducer in `src/components/ielts/TestProvider.tsx`": [
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784789786152
+      },
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884360373
+      },
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884671457
+      }
+    ],
+    "6.2 Add mount effect for session hydration in TestProvider": [
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784789786197
+      },
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884360456
+      }
+    ],
+    "6.3 Replace finalize-all-at-once logic with per-module API submission in TestProvider": [
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784789786237
+      },
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884360552
+      }
+    ],
+    "7. Checkpoint — Ensure provider tests pass": [
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784789786287
+      },
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884360625
+      }
+    ],
+    "8.1 Replace `results.length === 4` check with `hasAllModuleBands` computation in `src/components/ielts/HomeScreen.tsx`": [
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784789786333
+      },
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884360699
+      }
+    ],
+    "8.2 Add helper text for partial completion": [
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784789786387
+      },
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884360769
+      }
+    ],
+    "8.3 Disable certificate generation button when any module score is null": [
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784789786447
+      },
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884360833
+      }
+    ],
+    "9.1 Add `confirmNewTest` boolean state and handlers to `src/components/ielts/HomeScreen.tsx`": [
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784789786485
+      },
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884360883
+      }
+    ],
+    "9.2 Render \"Start New Test\" button and inline confirmation UI": [
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784789786522
+      },
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884360937
+      }
+    ],
+    "10.1 Add null-check guard to `src/app/api/certificates/generate/route.ts`": [
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784789786563
+      },
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884360988
+      }
+    ],
+    "11. Checkpoint — Ensure all tests pass": [
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784789786614
+      },
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884361047
+      }
+    ],
+    "12.1 Write integration test for full partial-session flow": [
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784789786651
+      },
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884361354
+      }
+    ],
+    "13. Final checkpoint — All tests pass": [
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784789786691
+      },
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884361466
+      }
+    ],
+    "1. Add ModuleScores type and extend TestAttempt schema": [
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784790490327
+      }
+    ],
+    "2. Add Zod validator for submit-module request": [
+      {
+        "executionId": "b4cfed2b-20db-4bc7-adec-025186c5a481",
+        "chatSessionId": "sess_34fd8724-511c-43d3-a1ec-160acb32441b",
+        "timestamp": 1784790495479
+      }
+    ],
+    "3. Create POST /api/test-attempts/[testId]/submit-module route": [
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884554591
+      }
+    ],
+    "1.3 Write unit tests for schema defaults": [
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884602673
+      }
+    ],
+    "2.2 Write property test for submit-module input validation": [
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884609167
+      }
+    ],
+    "3.2 Write unit tests for authentication and status guards": [
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884615201
+      }
+    ],
+    "3.3 Write property test for module score field isolation": [
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884620801
+      }
+    ],
+    "3.4 Write integration test for auto-finalization": [
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884628901
+      }
+    ],
+    "5.2 Write unit test for empty state response": [
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884634623
+      }
+    ],
+    "5. Create GET /api/test-attempts/active route": [
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884634745
+      }
+    ],
+    "5.3 Write property test for active attempt round-trip": [
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884640518
+      }
+    ],
+    "5.4 Write property test for most recent attempt selection": [
+      {
+        "executionId": "8fa79e5b-e9fa-4804-9fa0-1fe3cf83cf49",
+        "chatSessionId": "sess_9b1604e6-ae15-4105-b539-5d956efd639b",
+        "timestamp": 1784884647745
+      }
+    ],
+    "6.4 Write unit test for LOAD_SESSION idempotence": [
+      {
+        "executionId": "c807cf9c-9a06-46cc-a011-658806c4ef89",
+        "chatSessionId": "sess_e3ed050b-1fff-47e7-8f8b-489e18b450e3",
+        "timestamp": 1785139444034
+      }
+    ],
+    "6.5 Write property test for session hydration correctness": [
+      {
+        "executionId": "c807cf9c-9a06-46cc-a011-658806c4ef89",
+        "chatSessionId": "sess_e3ed050b-1fff-47e7-8f8b-489e18b450e3",
+        "timestamp": 1785139444903
+      }
+    ],
+    "8.4 Write property test for score display correctness": [
+      {
+        "executionId": "c807cf9c-9a06-46cc-a011-658806c4ef89",
+        "chatSessionId": "sess_e3ed050b-1fff-47e7-8f8b-489e18b450e3",
+        "timestamp": 1785139445442
+      }
+    ],
+    "8.5 Write property test for overall band display": [
+      {
+        "executionId": "c807cf9c-9a06-46cc-a011-658806c4ef89",
+        "chatSessionId": "sess_e3ed050b-1fff-47e7-8f8b-489e18b450e3",
+        "timestamp": 1785139446378
+      }
+    ],
+    "8.6 Write property test for helper text accuracy": [
+      {
+        "executionId": "c807cf9c-9a06-46cc-a011-658806c4ef89",
+        "chatSessionId": "sess_e3ed050b-1fff-47e7-8f8b-489e18b450e3",
+        "timestamp": 1785139446941
+      }
+    ]
+  }
+}

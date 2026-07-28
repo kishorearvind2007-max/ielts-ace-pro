@@ -12,7 +12,7 @@ import {
 } from '@/lib/testing/certificate-eligibility';
 import { toPublicCertificate } from '@/lib/testing/certificate-mappers';
 import { CertificateModel, type CertificateDocument } from '@/lib/testing/certificate-model';
-import { generateCertificateId, generateTestId } from '@/lib/testing/id';
+import { generateCertificateId } from '@/lib/testing/id';
 import { TestAttemptModel } from '@/lib/testing/test-attempt-model';
 import type { ModuleBandBreakdown } from '@/lib/testing/types';
 
@@ -121,9 +121,28 @@ export async function POST(request: NextRequest) {
 
     if (!testAttempt.finalScores) {
       return authError(
-        'INCOMPLETE_RESULTS',
+        'VALIDATION_ERROR',
         'Test results are incomplete. Please ensure all modules are evaluated.',
         400,
+      );
+    }
+
+    // Guard: all four module scores and overall must be non-null (Requirement 4.1, 4.2, 4.3)
+    const ms = testAttempt.moduleScores;
+    if (
+      !ms ||
+      ms.listening === null || ms.listening === undefined ||
+      ms.reading === null || ms.reading === undefined ||
+      ms.writing === null || ms.writing === undefined ||
+      ms.speaking === null || ms.speaking === undefined ||
+      ms.overall === null || ms.overall === undefined
+    ) {
+      return NextResponse.json(
+        {
+          error: 'INCOMPLETE_MODULES',
+          message: 'All four modules must be completed before certificate generation.',
+        },
+        { status: 400 },
       );
     }
 
@@ -170,29 +189,26 @@ export async function POST(request: NextRequest) {
 
     let createdCertificate: CertificateDocument | null = null;
     let attempts = 0;
-    const maxAttempts = 10; // Increased from 5
+    const maxAttempts = 10;
 
     while (!createdCertificate && attempts < maxAttempts) {
       attempts += 1;
       const candidateCertificateId = generateCertificateId();
-      const candidateTestId = generateTestId();
 
-      // Check if these IDs already exist
+      // Check if this certificateId already exists
       const idExists = await CertificateModel.exists({
-        $or: [
-          { certificateId: candidateCertificateId },
-          { testId: candidateTestId },
-        ],
+        certificateId: candidateCertificateId,
       });
 
       if (idExists) {
-        continue; // Try again with new IDs
+        continue; // Try again with a new certificateId
       }
 
       try {
         const created = await CertificateModel.create({
           certificateId: candidateCertificateId,
-          testId: candidateTestId,
+          testId,
+          sessionId: testId,
           studentId: student._id,
           attemptId: testAttempt._id,
           resultId: testAttempt._id, // Using attemptId as resultId since we don't have separate result model
@@ -207,7 +223,15 @@ export async function POST(request: NextRequest) {
 
         createdCertificate = Array.isArray(created) ? created[0] : created;
       } catch (error) {
-        if (!isDuplicateKeyError(error)) {
+        console.error('[certificate/generate] Error during CertificateModel.create:', error);
+        if (isDuplicateKeyError(error)) {
+          // Check if certificate already exists for this testId or attemptId
+          const raced = await CertificateModel.findOne({ testId }).lean();
+          if (raced) {
+            createdCertificate = raced as CertificateDocument;
+            break;
+          }
+        } else {
           throw error;
         }
       }

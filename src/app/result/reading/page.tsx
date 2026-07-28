@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { ArrowLeft, BarChart3, CheckCircle2, Clock, Home, XCircle } from 'lucide-react';
@@ -10,12 +10,40 @@ import { Button } from '@/components/ui/button';
 export default function ReadingResultPage() {
   const router = useRouter();
   const { state } = useTest();
+  const [dbReadingResult, setDbReadingResult] = useState<any>(null);
 
   const readingResult = useMemo(
-    () => state.results.find(result => result.module === 'reading'),
-    [state.results],
+    () => dbReadingResult || state.results.find(result => result.module === 'reading'),
+    [state.results, dbReadingResult],
   );
   const detailedResults = readingResult?.detailedResults;
+
+  useEffect(() => {
+    const loadResults = async () => {
+      // Try to get sessionId from URL params or localStorage
+      const urlParams = new URLSearchParams(window.location.search);
+      const sessionId = urlParams.get('testId') || localStorage.getItem('currentSessionId');
+
+      if (sessionId) {
+        // Fetch from database
+        try {
+          const response = await fetch(`/api/test-attempts/${sessionId}`);
+          if (response.ok) {
+            const apiData = await response.json();
+            const moduleResult = apiData.attempt?.moduleResults?.reading;
+            if (moduleResult) {
+              setDbReadingResult(moduleResult);
+              return;
+            }
+          }
+        } catch (error) {
+          console.warn('[reading-result] Failed to fetch from database:', error);
+        }
+      }
+    };
+
+    loadResults();
+  }, []);
 
   useEffect(() => {
     if (!detailedResults) {
@@ -134,13 +162,12 @@ export default function ReadingResultPage() {
                       <div className="w-32 text-xs text-foreground capitalize">{type}</div>
                       <div className="flex-1 h-4 bg-secondary rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full ${
-                            typeAccuracy >= 70
-                              ? 'bg-success'
-                              : typeAccuracy >= 50
-                                ? 'bg-warning'
-                                : 'bg-destructive'
-                          }`}
+                          className={`h-full rounded-full ${typeAccuracy >= 70
+                            ? 'bg-success'
+                            : typeAccuracy >= 50
+                              ? 'bg-warning'
+                              : 'bg-destructive'
+                            }`}
                           style={{ width: `${typeAccuracy}%` }}
                         />
                       </div>
@@ -165,11 +192,10 @@ export default function ReadingResultPage() {
             {detailedResults.evaluations.map(evaluation => (
               <div
                 key={evaluation.questionId}
-                className={`p-3 rounded-lg border ${
-                  evaluation.isCorrect
-                    ? 'bg-success/10 border-success/30'
-                    : 'bg-destructive/10 border-destructive/30'
-                }`}
+                className={`p-3 rounded-lg border ${evaluation.isCorrect
+                  ? 'bg-success/10 border-success/30'
+                  : 'bg-destructive/10 border-destructive/30'
+                  }`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2">

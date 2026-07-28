@@ -35,21 +35,47 @@ export default function ListeningResultPage() {
   const [filter, setFilter] = useState<ResultFilter>('all');
 
   useEffect(() => {
-    const raw = localStorage.getItem('listeningResult');
-    if (!raw) {
-      router.push('/dashboard');
-      return;
-    }
+    const loadResults = async () => {
+      // Try to get sessionId from URL params or localStorage
+      const urlParams = new URLSearchParams(window.location.search);
+      const sessionId = urlParams.get('testId') || localStorage.getItem('currentSessionId');
 
-    try {
-      const parsed = JSON.parse(raw) as ListeningResultSnapshot;
-      if (!parsed?.listeningValidation?.questionResults) {
-        throw new Error('Invalid listening result payload');
+      if (sessionId) {
+        // Fetch from database
+        try {
+          const response = await fetch(`/api/test-attempts/${sessionId}`);
+          if (response.ok) {
+            const data = await response.json();
+            const moduleResult = data.attempt?.moduleResults?.listening;
+            if (moduleResult?.listeningValidation?.questionResults) {
+              setData(moduleResult as ListeningResultSnapshot);
+              return;
+            }
+          }
+        } catch (error) {
+          console.warn('[listening-result] Failed to fetch from database:', error);
+        }
       }
-      setData(parsed);
-    } catch {
-      router.push('/dashboard');
-    }
+
+      // Fallback to localStorage
+      const raw = localStorage.getItem('listeningResult');
+      if (!raw) {
+        router.push('/dashboard');
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(raw) as ListeningResultSnapshot;
+        if (!parsed?.listeningValidation?.questionResults) {
+          throw new Error('Invalid listening result payload');
+        }
+        setData(parsed);
+      } catch {
+        router.push('/dashboard');
+      }
+    };
+
+    loadResults();
   }, [router]);
 
   const filteredQuestionResults = useMemo(() => {
@@ -148,11 +174,10 @@ export default function ListeningResultPage() {
                 <button
                   key={option}
                   onClick={() => setFilter(option)}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                    filter === option
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${filter === option
                       ? 'border-primary bg-primary text-primary-foreground'
                       : 'border-border bg-secondary/40 text-foreground hover:border-primary/40'
-                  }`}
+                    }`}
                 >
                   {option === 'all' ? 'All' : option === 'incorrect' ? 'Incorrect' : 'Unanswered'}
                 </button>

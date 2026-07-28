@@ -45,29 +45,67 @@ export default function SpeakingResultPage() {
       router.push('/results');
     };
 
-    let raw: string | null = null;
-    try {
-      raw = localStorage.getItem('speakingResult');
-    } catch {
-      setStateFallbackOrRedirect();
-      return;
-    }
+    const loadResults = async () => {
+      // Try to get sessionId from URL params or localStorage
+      const urlParams = new URLSearchParams(window.location.search);
+      const sessionId = urlParams.get('testId') || localStorage.getItem('currentSessionId');
 
-    if (!raw) {
-      setStateFallbackOrRedirect();
-      return;
-    }
-
-    try {
-      const parsed = JSON.parse(raw) as SpeakingResultSnapshot;
-      if (!parsed || typeof parsed.band !== 'number' || !parsed.criteriaScores || !parsed.transcripts) {
-        throw new Error('Invalid speaking result payload');
+      if (sessionId) {
+        // Fetch from database
+        try {
+          const response = await fetch(`/api/test-attempts/${sessionId}`);
+          if (response.ok) {
+            const apiData = await response.json();
+            const moduleResult = apiData.attempt?.moduleResults?.speaking;
+            if (moduleResult && typeof moduleResult.band === 'number') {
+              setSpeakingResult({
+                band: moduleResult.band,
+                criteriaScores: moduleResult.criteriaScores ?? {},
+                strengths: moduleResult.strengths ?? [],
+                improvements: moduleResult.improvements ?? [],
+                examinerComment: moduleResult.examinerComment ?? '',
+                transcripts: moduleResult.transcripts ?? { part1: '', part2: '', part3: '' },
+                evaluationMode: moduleResult.evaluationMode ?? 'fallback',
+                modelUsed: moduleResult.modelUsed ?? 'unknown',
+                warning: moduleResult.warning,
+                source: moduleResult.source ?? 'fallback',
+                submittedAt: apiData.attempt.updatedAt || new Date().toISOString(),
+              });
+              return;
+            }
+          }
+        } catch (error) {
+          console.warn('[speaking-result] Failed to fetch from database:', error);
+        }
       }
 
-      setSpeakingResult(parsed);
-    } catch {
-      setStateFallbackOrRedirect();
-    }
+      // Fallback to localStorage
+      let raw: string | null = null;
+      try {
+        raw = localStorage.getItem('speakingResult');
+      } catch {
+        setStateFallbackOrRedirect();
+        return;
+      }
+
+      if (!raw) {
+        setStateFallbackOrRedirect();
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(raw) as SpeakingResultSnapshot;
+        if (!parsed || typeof parsed.band !== 'number' || !parsed.criteriaScores || !parsed.transcripts) {
+          throw new Error('Invalid speaking result payload');
+        }
+
+        setSpeakingResult(parsed);
+      } catch {
+        setStateFallbackOrRedirect();
+      }
+    };
+
+    loadResults();
   }, [router, state.results, state.speakingTranscripts]);
 
   const transcriptEntries = useMemo(() => {

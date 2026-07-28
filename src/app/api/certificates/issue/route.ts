@@ -154,6 +154,7 @@ export async function POST(request: NextRequest) {
         const created = await CertificateModel.create({
           certificateId: candidateCertificateId,
           testId,
+          sessionId: testId,
           studentId: sessionUser.id,
           attemptId: result.attemptId,
           resultId: result._id,

@@ -202,7 +202,8 @@ export function WritingModule() {
 
       // Navigate to dedicated results page if we have AI evaluations
       if (task1Result && task2Result) {
-        router.push('/result/writing');
+        const sessionId = state.sessionId || localStorage.getItem('currentSessionId') || '';
+        router.push(`/result/writing${sessionId ? `?testId=${sessionId}` : ''}`);
       }
     } finally {
       setIsEvaluating(false);

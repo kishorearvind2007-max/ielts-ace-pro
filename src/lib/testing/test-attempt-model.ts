@@ -3,6 +3,7 @@ import type {
   AttemptModuleContent,
   AttemptStatus,
   FinalizedAttemptResult,
+  ModuleScores,
   SpeakingTranscripts,
   TestSessionFinalScores,
   WritingResponses,
@@ -23,7 +24,8 @@ export interface TestAttempt {
   status: AttemptStatus;
   modules: AttemptModuleContent;
   submissions: AttemptSubmissions;
-  moduleResults?: FinalizedAttemptResult;
+  moduleScores?: ModuleScores | null;
+  moduleResults?: FinalizedAttemptResult | Record<string, never>;
   finalScores?: TestSessionFinalScores;
   resultLocked: boolean;
   certificateIssued: boolean;
@@ -94,9 +96,19 @@ const testAttemptSchema = new Schema<TestAttempt>(
       required: true,
       default: defaultSubmissions,
     },
+    moduleScores: {
+      type: Schema.Types.Mixed,
+      default: () => ({
+        listening: null,
+        reading: null,
+        writing: null,
+        speaking: null,
+        overall: null,
+      }),
+    },
     moduleResults: {
       type: Schema.Types.Mixed,
-      default: null,
+      default: () => ({}),
     },
     finalScores: {
       type: Schema.Types.Mixed,

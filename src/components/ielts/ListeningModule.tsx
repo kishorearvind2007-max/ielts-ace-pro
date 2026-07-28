@@ -287,7 +287,8 @@ export function ListeningModule() {
       listeningValidation: evaluation,
     });
 
-    router.push('/result/listening');
+    const sessionId = state.sessionId || localStorage.getItem('currentSessionId') || '';
+    router.push(`/result/listening${sessionId ? `?testId=${sessionId}` : ''}`);
   }, [allSections, persistListeningSnapshot, router, state.answers.listening, stopPlayback, submitModule]);
 
   const handleSubmit = useCallback(() => {
@@ -417,9 +418,8 @@ export function ListeningModule() {
       return (
         <div className="space-y-2">
           {q.options?.map(opt => (
-            <label key={opt} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
-              answer === opt ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/30'
-            }`}>
+            <label key={opt} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${answer === opt ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/30'
+              }`}>
               <input type="radio" name={`q-${q.id}`} checked={answer === opt}
                 onChange={() => dispatch({ type: 'SET_ANSWER', module: 'listening', questionId: q.id, answer: opt })}
                 className="sr-only" />
@@ -461,10 +461,9 @@ export function ListeningModule() {
         {/* Section progress - no going back */}
         <div className="flex items-center gap-2 mb-4">
           {[0, 1, 2, 3].map(i => (
-            <div key={i} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${
-              i === currentSection ? 'bg-primary text-primary-foreground' :
+            <div key={i} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${i === currentSection ? 'bg-primary text-primary-foreground' :
               sectionComplete[i] ? 'bg-success/20 text-success' : 'bg-secondary text-muted-foreground'
-            }`}>
+              }`}>
               {i < currentSection && <Lock className="w-3 h-3" />}
               Section {i + 1}
             </div>

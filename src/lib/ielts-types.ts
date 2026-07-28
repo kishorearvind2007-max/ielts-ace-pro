@@ -259,6 +259,7 @@ export interface TestState {
   isTimerRunning: boolean;
   apiKey: string;
   sessionId: string | null;
+  sessionLoaded: boolean;
 }
 
 export type TestAction =
@@ -271,6 +272,8 @@ export type TestAction =
   | { type: 'SET_SPEAKING_TRANSCRIPT'; part: 'part1' | 'part2' | 'part3'; text: string }
   | { type: 'ADD_RESULT'; result: ModuleResult }
   | { type: 'LOAD_RESULTS'; results: ModuleResult[] }
+  | { type: 'LOAD_SESSION'; sessionId: string; results: ModuleResult[] }
+  | { type: 'SET_SESSION_LOADED'; loaded: boolean }
   | { type: 'SET_TIMER'; seconds: number }
   | { type: 'SET_TIMER_RUNNING'; running: boolean }
   | { type: 'SET_API_KEY'; key: string }

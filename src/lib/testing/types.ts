@@ -94,3 +94,11 @@ export type TestSessionFinalScores = {
   speaking: number;
   overallBand: number;
 };
+
+export type ModuleScores = {
+  listening: number | null;
+  reading: number | null;
+  writing: number | null;
+  speaking: number | null;
+  overall: number | null;
+};

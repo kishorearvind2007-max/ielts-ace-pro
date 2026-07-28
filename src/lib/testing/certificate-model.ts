@@ -4,6 +4,7 @@ import type { CertificateStatus, ModuleBandBreakdown } from '@/lib/testing/types
 export interface Certificate {
   certificateId: string;
   testId: string;
+  sessionId?: string;
   studentId: mongoose.Types.ObjectId;
   attemptId: mongoose.Types.ObjectId;
   resultId: mongoose.Types.ObjectId;
@@ -34,6 +35,13 @@ const certificateSchema = new Schema<Certificate>(
       type: String,
       required: true,
       unique: true,
+      immutable: true,
+      trim: true,
+      index: true,
+    },
+    sessionId: {
+      type: String,
+      required: false,
       immutable: true,
       trim: true,
       index: true,

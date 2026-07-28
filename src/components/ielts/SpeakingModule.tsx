@@ -100,7 +100,7 @@ function buildFallbackCriteria(band: number): Record<string, CriterionScore> {
 
 export function SpeakingModule() {
   const router = useRouter();
-  const { state, dispatch } = useTest();
+  const { state, dispatch, submitModule } = useTest();
   const [currentPart, setCurrentPart] = useState(0);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
@@ -474,6 +474,21 @@ export function SpeakingModule() {
         }
       }
 
+      // Submit to database via TestProvider
+      submitModule({
+        module: 'speaking',
+        band: roundedBand,
+        criteriaScores,
+        strengths,
+        improvements,
+        examinerComment,
+        transcripts: finalTranscripts,
+        evaluationMode,
+        modelUsed,
+        warning,
+        source: contentSource,
+      });
+
       dispatch({
         type: 'ADD_RESULT',
         result: {
@@ -489,7 +504,8 @@ export function SpeakingModule() {
       dispatch({ type: 'SET_MODULE', module: null });
       dispatch({ type: 'SET_TIMER_RUNNING', running: false });
 
-      router.push('/result/speaking');
+      const sessionId = state.sessionId || localStorage.getItem('currentSessionId') || '';
+      router.push(`/result/speaking${sessionId ? `?testId=${sessionId}` : ''}`);
     } finally {
       setIsEvaluating(false);
     }
@@ -552,7 +568,7 @@ export function SpeakingModule() {
         <div className="flex gap-3 mb-8">
           {[1, 2, 3].map(p => (
             <div key={p} className={`px-4 py-2 rounded-lg text-sm font-medium ${currentPart + 1 === p ? 'bg-primary text-primary-foreground' :
-                currentPart + 1 > p ? 'bg-success/20 text-success' : 'bg-secondary text-secondary-foreground'
+              currentPart + 1 > p ? 'bg-success/20 text-success' : 'bg-secondary text-secondary-foreground'
               }`}>
               Part {p}
             </div>
@@ -602,10 +618,10 @@ export function SpeakingModule() {
             onClick={isRecording ? () => stopRecording({ persist: true }) : startRecording}
             disabled={isPreparing || !speechSupported}
             className={`w-24 h-24 rounded-full flex items-center justify-center transition-all ${isRecording
-                ? 'bg-destructive animate-pulse-recording'
-                : (isPreparing || !speechSupported)
-                  ? 'bg-secondary cursor-not-allowed'
-                  : 'bg-primary hover:bg-primary/80'
+              ? 'bg-destructive animate-pulse-recording'
+              : (isPreparing || !speechSupported)
+                ? 'bg-secondary cursor-not-allowed'
+                : 'bg-primary hover:bg-primary/80'
               }`}
           >
             {isRecording ? <MicOff className="w-10 h-10 text-foreground" /> : <Mic className="w-10 h-10 text-primary-foreground" />}
